@@ -1,0 +1,61 @@
+{
+  "name": "ux-flow-engine",
+  "version": "2.0.0",
+  "description": "AI-powered UX Flow Design Engine - Microservice Architecture",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "scripts": {
+    "preinstall": "npx only-allow npm",
+    "install:all": "npm install && npm run build:common",
+    "build": "lerna run build --stream",
+    "build:common": "npm run build --workspace=packages/common",
+    "dev": "concurrently \"npm run dev:common\" \"npm run dev:services\"",
+    "dev:common": "npm run dev --workspace=packages/common",
+    "dev:services": "lerna run dev --parallel --scope='@ux-flow/*-service'",
+    "test": "lerna run test --stream",
+    "test:integration": "jest --config=tests/integration/jest.config.js",
+    "test:coverage": "lerna run test:coverage --stream",
+    "lint": "lerna run lint --stream",
+    "lint:fix": "lerna run lint:fix --stream",
+    "clean": "lerna run clean --stream && lerna clean --yes",
+    "reset": "npm run clean && npm install",
+    "health:check": "node scripts/health-check.js",
+    "logs:tail": "node scripts/log-aggregator.js",
+    "migrate:data": "node scripts/migrate-data.js",
+    "generate:service": "node tools/generators/new-service.js",
+    "generate:agent": "node tools/generators/new-agent.js",
+    "docs:api": "node tools/generators/api-docs.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-node": "^11.1.0",
+    "jest": "^29.7.0",
+    "lerna": "^8.1.2",
+    "nodemon": "^3.1.0",
+    "prettier": "^3.2.5",
+    "supertest": "^7.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/ux-flow-engine.git"
+  },
+  "keywords": [
+    "ux-design",
+    "ai-agents",
+    "flow-diagrams",
+    "microservices",
+    "user-experience"
+  ],
+  "author": "Your Organization",
+  "license": "MIT"
+}

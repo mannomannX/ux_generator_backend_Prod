@@ -1,0 +1,30 @@
+{
+  "name": "@ux-flow/cognitive-core-service",
+  "version": "1.0.0",
+  "description": "AI Agents orchestration service for UX-Flow-Engine",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.js",
+    "lint:fix": "eslint src/**/*.js --fix",
+    "build": "echo 'No build step required'",
+    "clean": "echo 'No clean step required'"
+  },
+  "dependencies": {
+    "@ux-flow/common": "^1.0.0",
+    "@google/generative-ai": "^0.24.1",
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  }
+}

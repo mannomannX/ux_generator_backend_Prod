@@ -1,0 +1,38 @@
+
+{
+  "name": "@ux-flow/common",
+  "version": "1.0.0",
+  "description": "Shared utilities and libraries for UX-Flow-Engine services",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.js",
+    "lint:fix": "eslint src/**/*.js --fix",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "winston": "^3.13.0",
+    "redis": "^4.6.13",
+    "mongodb": "^6.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "joi": "^17.12.3",
+    "axios": "^1.7.2",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5",
+    "jest": "^29.7.0"
+  },
+  "peerDependencies": {
+    "express": "^4.19.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}
