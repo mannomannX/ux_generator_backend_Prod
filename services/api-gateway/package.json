@@ -16,7 +16,7 @@
     "clean": "echo 'No clean step required'"
   },
   "dependencies": {
-    "@ux-flow/common": "^1.0.0",
+    "@ux-flow/common": "file:../../packages/common",
     "express": "^4.19.2",
     "cors": "^2.8.5",
     "helmet": "^7.1.0",

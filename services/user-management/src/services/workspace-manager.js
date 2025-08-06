@@ -55,9 +55,21 @@ class WorkspaceManager {
         createdAt: new Date(),
         updatedAt: new Date(),
         metadata: {
-          plan: 'free', // free, pro, enterprise
+          plan: 'free', // free, starter, professional, enterprise
           billingEmail: null,
           lastActivityAt: new Date(),
+        },
+        billing: {
+          plan: 'free',
+          stripeCustomerId: null,
+          stripeSubscriptionId: null,
+          credits: {
+            balance: 100, // Free plan default
+            monthlyAllocation: 100,
+            additionalCredits: 0,
+            resetDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1), // First day of next month
+          },
+          status: 'active',
         },
       };
 

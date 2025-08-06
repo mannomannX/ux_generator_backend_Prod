@@ -8,11 +8,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "jest",
-    "test:unit": "jest tests/unit/",
-    "test:integration": "jest tests/integration/",
-    "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
-    "test:ci": "jest --coverage --ci --watchAll=false",
+    "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
     "build": "echo 'No build step required'",
@@ -20,7 +17,7 @@
     "health:check": "curl -f http://localhost:3001/health || exit 1"
   },
   "dependencies": {
-    "@ux-flow/common": "^1.0.0",
+    "@ux-flow/common": "file:../../packages/common",
     "@google/generative-ai": "^0.24.1",
     "express": "^4.19.2",
     "cors": "^2.8.5",

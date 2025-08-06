@@ -1,0 +1,218 @@
+version: '3.8'
+
+services:
+  # Infrastructure Services
+  mongodb:
+    image: mongo:7
+    container_name: ux-flow-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-changeme}
+      MONGO_INITDB_DATABASE: ux-flow-engine
+    networks:
+      - ux-flow-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ux-flow-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - ux-flow-network
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: ux-flow-chromadb
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: "/chroma/chroma"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    networks:
+      - ux-flow-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: ux-flow-api-gateway
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      NODE_ENV: production
+      API_GATEWAY_PORT: 3000
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@mongodb:27017/ux-flow-engine?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      COGNITIVE_CORE_URL: http://cognitive-core:3001
+      FLOW_SERVICE_URL: http://flow-service:3003
+      KNOWLEDGE_SERVICE_URL: http://knowledge-service:3002
+      USER_MANAGEMENT_URL: http://user-management:3004
+      BILLING_SERVICE_URL: http://billing-service:3005
+    networks:
+      - ux-flow-network
+
+  # Cognitive Core Service
+  cognitive-core:
+    build:
+      context: ./services/cognitive-core
+      dockerfile: Dockerfile
+    container_name: ux-flow-cognitive-core
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      NODE_ENV: production
+      SERVICE_PORT: 3001
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@mongodb:27017/ux-flow-engine?authSource=admin
+      REDIS_URL: redis://redis:6379
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    networks:
+      - ux-flow-network
+
+  # Knowledge Service
+  knowledge-service:
+    build:
+      context: ./services/knowledge-service
+      dockerfile: Dockerfile
+    container_name: ux-flow-knowledge
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    depends_on:
+      - mongodb
+      - redis
+      - chromadb
+    environment:
+      NODE_ENV: production
+      SERVICE_PORT: 3002
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@mongodb:27017/ux-flow-engine?authSource=admin
+      REDIS_URL: redis://redis:6379
+      CHROMADB_HOST: chromadb
+      CHROMADB_PORT: 8000
+    networks:
+      - ux-flow-network
+
+  # Flow Service
+  flow-service:
+    build:
+      context: ./services/flow-service
+      dockerfile: Dockerfile
+    container_name: ux-flow-flow
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      NODE_ENV: production
+      SERVICE_PORT: 3003
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@mongodb:27017/ux-flow-engine?authSource=admin
+      REDIS_URL: redis://redis:6379
+    networks:
+      - ux-flow-network
+
+  # User Management Service
+  user-management:
+    build:
+      context: ./services/user-management
+      dockerfile: Dockerfile
+    container_name: ux-flow-user-management
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      NODE_ENV: production
+      SERVICE_PORT: 3004
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@mongodb:27017/ux-flow-engine?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+      EMAIL_FROM: ${EMAIL_FROM}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+    networks:
+      - ux-flow-network
+
+  # Billing Service
+  billing-service:
+    build:
+      context: ./services/billing-service
+      dockerfile: Dockerfile
+    container_name: ux-flow-billing
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      NODE_ENV: production
+      BILLING_SERVICE_PORT: 3005
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@mongodb:27017/ux-flow-engine?authSource=admin
+      REDIS_URL: redis://redis:6379
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_STARTER_PRODUCT_ID: ${STRIPE_STARTER_PRODUCT_ID}
+      STRIPE_STARTER_PRICE_ID: ${STRIPE_STARTER_PRICE_ID}
+      STRIPE_PRO_PRODUCT_ID: ${STRIPE_PRO_PRODUCT_ID}
+      STRIPE_PRO_PRICE_ID: ${STRIPE_PRO_PRICE_ID}
+      STRIPE_ENTERPRISE_PRODUCT_ID: ${STRIPE_ENTERPRISE_PRODUCT_ID}
+      STRIPE_ENTERPRISE_PRICE_ID: ${STRIPE_ENTERPRISE_PRICE_ID}
+    networks:
+      - ux-flow-network
+
+  # Nginx Reverse Proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: ux-flow-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api-gateway
+    networks:
+      - ux-flow-network
+
+networks:
+  ux-flow-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
+  chroma_data:

@@ -1,0 +1,32 @@
+{
+  "name": "@ux-flow/knowledge-service",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Knowledge management and RAG service for UX-Flow-Engine",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "dependencies": {
+    "@ux-flow/common": "file:../../packages/common",
+    "express": "^4.19.2",
+    "mongodb": "^6.5.0",
+    "redis": "^4.6.13",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "axios": "^1.7.2",
+    "express-rate-limit": "^7.2.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

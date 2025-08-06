@@ -1,85 +1,159 @@
 # API Gateway Service
 
-> **⚠️ DOCUMENTATION MAINTENANCE REQUIRED**  
-> When making changes to this service, you MUST update this README if the changes affect:
-> - API endpoints (input/output schemas)
-> - Event schemas (published/consumed events)
-> - WebSocket protocol (message types/schemas)
-> - Environment variables or configuration
-> - Service dependencies or integrations
+[![Service Status](https://img.shields.io/badge/status-production-green.svg)](https://github.com/ux-flow-engine/api-gateway)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](./package.json)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
----
+> **Central entry point and real-time communication hub for the UX-Flow-Engine ecosystem**
 
-## 🎯 **Service Overview**
+The API Gateway serves as the unified interface for all client interactions, handling HTTP REST API requests, WebSocket connections for real-time collaboration, authentication/authorization, and intelligent routing to downstream microservices.
 
-### **Purpose**
-Central entry point for all client requests, handling HTTP REST API endpoints, WebSocket connections for real-time collaboration, authentication/authorization, and routing requests to appropriate microservices in the UX-Flow-Engine ecosystem.
+## 🏛️ Architecture Overview
 
-### **Core Responsibilities**
-- **Request Routing**: Single entry point routing HTTP requests to downstream services
-- **Authentication & Authorization**: JWT token validation, user session management, and permission enforcement
-- **WebSocket Management**: Real-time bidirectional communication for collaborative flow editing
-- **Rate Limiting & Security**: Request throttling, CORS, security headers, and abuse prevention
-- **Client Connection Management**: WebSocket room management and cross-service event coordination
+```mermaid
+graph TB
+    Client[Frontend Client] --> Gateway[API Gateway]
+    Gateway --> Auth[Authentication Layer]
+    Gateway --> WS[WebSocket Manager]
+    Gateway --> Routes[HTTP Routes]
+    
+    Auth --> JWT[JWT Validation]
+    Auth --> Session[Session Management]
+    
+    WS --> Rooms[Room Manager]
+    WS --> Messages[Message Handler]
+    
+    Routes --> Projects[Project Routes]
+    Routes --> Admin[Admin Routes]
+    Routes --> Health[Health Routes]
+    
+    Gateway --> Cognitive[Cognitive Core]
+    Gateway --> Flow[Flow Service]
+    Gateway --> Knowledge[Knowledge Service]
+    Gateway --> UserMgmt[User Management]
+    
+    Gateway --> MongoDB[(MongoDB)]
+    Gateway --> Redis[(Redis)]
+    
+    style Gateway fill:#e1f5fe
+    style WS fill:#f3e5f5
+    style Auth fill:#fff3e0
+```
 
-### **Service Dependencies**
+## 🎯 Service Overview
 
-#### **Input Dependencies (Services this service consumes)**
-| Service | Communication Method | Purpose | Required |
-|---------|---------------------|---------|----------|
-| `cognitive-core` | Events (Redis Pub/Sub) | AI agent responses and conversation handling | Yes |
-| `flow-service` | Events (Redis Pub/Sub) | Flow data updates and persistence | Yes |
-| `knowledge-service` | Events (Redis Pub/Sub) | Knowledge retrieval and RAG responses | No |
-| MongoDB | Direct connection | User, project, conversation data persistence | Yes |
-| Redis | Direct connection | Event bus, caching, session storage | Yes |
+### Primary Responsibilities
 
-#### **Output Dependencies (Services that consume this service)**
-| Service | Communication Method | What they get from us | Critical |
-|---------|---------------------|----------------------|----------|
-| `cognitive-core` | Events (Redis Pub/Sub) | User messages, plan approvals, image uploads | Yes |
-| `flow-service` | Events (Redis Pub/Sub) | Flow update requests, project lifecycle events | Yes |
-| Frontend Client | HTTP REST + WebSocket | API responses, real-time updates | Yes |
+- **🌐 API Gateway**: Single entry point for all client HTTP requests
+- **🔐 Authentication**: JWT token validation and user session management
+- **⚡ Real-time Communication**: WebSocket connections for live collaboration
+- **🛡️ Security**: Rate limiting, CORS, input validation, and security headers
+- **📡 Event Orchestration**: Inter-service communication via Redis pub/sub
+- **🎯 Request Routing**: Intelligent routing to appropriate microservices
 
-#### **External Dependencies**
-| Dependency | Type | Purpose | Fallback Strategy |
-|------------|------|---------|------------------|
-| MongoDB Atlas | Database | User/project data persistence | Connection retry with exponential backoff |
-| Redis Cloud | Cache/PubSub | Event bus and session storage | Memory fallback for session, event buffering |
+### Service Dependencies
 
----
+| Service | Type | Purpose | Critical |
+|---------|------|---------|----------|
+| MongoDB | Database | User, project, and conversation persistence | Yes |
+| Redis | Cache/PubSub | Session storage, event bus, room management | Yes |
+| Cognitive Core | Microservice | AI conversation processing | Yes |
+| Flow Service | Microservice | Flow data management | Yes |
+| Knowledge Service | Microservice | Knowledge retrieval (optional) | No |
+| User Management | Microservice | User authentication and management | Yes |
 
-## 🔌 **API Contract Specification**
+## 🚀 Getting Started
 
-### **Base URL**
+### Prerequisites
+
+```bash
+# Required software versions
+node --version    # >= 18.0.0
+npm --version     # >= 8.0.0
+```
+
+### Installation
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd services/api-gateway
+
+# Install dependencies
+npm install
+
+# Setup environment
+cp .env.example .env
+# Edit .env with your configuration values
+```
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `API_GATEWAY_PORT` | ❌ | `3000` | HTTP server port |
+| `NODE_ENV` | ✅ | `development` | Environment mode |
+| `MONGODB_URI` | ✅ | - | MongoDB connection string |
+| `REDIS_URL` | ✅ | - | Redis connection string |
+| `JWT_SECRET` | ✅ | - | JWT signing secret |
+| `JWT_EXPIRES_IN` | ❌ | `7d` | JWT expiration time |
+| `CORS_ORIGINS` | ❌ | `*` | Allowed CORS origins (comma-separated) |
+| `RATE_LIMIT_WINDOW_MS` | ❌ | `900000` | Rate limit window (15min) |
+| `RATE_LIMIT_MAX_REQUESTS` | ❌ | `100` | Max requests per window |
+| `LOG_LEVEL` | ❌ | `info` | Logging verbosity |
+
+### Quick Start
+
+```bash
+# Development mode with hot reload
+npm run dev
+
+# Production mode
+npm start
+
+# Run tests
+npm test
+
+# Run with coverage
+npm run test:coverage
+```
+
+## 📡 API Reference
+
+### Base URLs
+
 - **Development**: `http://localhost:3000`
 - **Production**: `https://api.uxflow.app`
 
-### **Authentication**
-- **Type**: JWT Bearer Token
-- **Header**: `Authorization: Bearer <token>`
-- **Validation**: JWT signature verification with user context injection
+### Authentication
 
-### **API Endpoints**
+All protected endpoints require JWT authentication:
 
-#### **POST /api/v1/auth/register**
-**Purpose**: Register new user account with optional workspace creation
+```http
+Authorization: Bearer <jwt_token>
+```
 
-**Authentication**: ❌ Public endpoint
+### Core Endpoints
 
-**Rate Limiting**: 5 requests per 15 minutes per IP
+#### Authentication
 
-**Request Schema**:
+##### `POST /api/v1/auth/register`
+
+Register a new user account.
+
+**Request Body:**
 ```json
 {
   "email": "user@example.com",
-  "password": "securepassword123",
+  "password": "securePassword123",
   "firstName": "John",
   "lastName": "Doe",
   "workspaceName": "My Workspace"
 }
 ```
 
-**Response Schema** (201 Success):
+**Response (201):**
 ```json
 {
   "message": "User registered successfully",
@@ -97,20 +171,19 @@ Central entry point for all client requests, handling HTTP REST API endpoints, W
 }
 ```
 
-#### **POST /api/v1/auth/login**
-**Purpose**: Authenticate user and return JWT token
+##### `POST /api/v1/auth/login`
 
-**Authentication**: ❌ Public endpoint
+Authenticate user and receive JWT token.
 
-**Request Schema**:
+**Request Body:**
 ```json
 {
   "email": "user@example.com",
-  "password": "securepassword123"
+  "password": "securePassword123"
 }
 ```
 
-**Response Schema** (200 Success):
+**Response (200):**
 ```json
 {
   "message": "Login successful",
@@ -128,24 +201,24 @@ Central entry point for all client requests, handling HTTP REST API endpoints, W
 }
 ```
 
-#### **GET /api/v1/projects**
-**Purpose**: List user's accessible projects with pagination
+#### Projects
 
-**Authentication**: ✅ Required
+##### `GET /api/v1/projects`
 
-**Rate Limiting**: 1000 requests per 15 minutes
+List user's accessible projects with pagination.
 
-**Query Parameters**:
-```javascript
-{
-  "page": 1,           // Page number (default: 1)
-  "limit": 20,         // Items per page (default: 20, max: 100)
-  "search": "string",  // Search in name/description
-  "status": "active|inactive|deleted"
-}
+**Headers:**
+```http
+Authorization: Bearer <token>
 ```
 
-**Response Schema** (200 Success):
+**Query Parameters:**
+- `page` (number): Page number (default: 1)
+- `limit` (number): Items per page (default: 20, max: 100)
+- `search` (string): Search in name/description
+- `status` (string): Filter by status (active|inactive|deleted)
+
+**Response (200):**
 ```json
 {
   "projects": [
@@ -177,29 +250,33 @@ Central entry point for all client requests, handling HTTP REST API endpoints, W
 }
 ```
 
-#### **POST /api/v1/projects**
-**Purpose**: Create new project with optional template initialization
+##### `POST /api/v1/projects`
 
-**Authentication**: ✅ Required (write_projects permission)
+Create a new project.
 
-**Request Schema**:
+**Headers:**
+```http
+Authorization: Bearer <token>
+```
+
+**Request Body:**
 ```json
 {
   "name": "New Flow Project",
-  "description": "Description of the project",
-  "visibility": "private|public|workspace",
-  "template": "login_flow|signup_flow|null"
+  "description": "Project description",
+  "visibility": "private",
+  "template": "login_flow"
 }
 ```
 
-**Response Schema** (201 Success):
+**Response (201):**
 ```json
 {
   "message": "Project created successfully",
   "project": {
     "id": "507f1f77bcf86cd799439014",
     "name": "New Flow Project",
-    "description": "Description of the project",
+    "description": "Project description",
     "ownerId": "507f1f77bcf86cd799439011",
     "workspaceId": "507f1f77bcf86cd799439012",
     "status": "active",
@@ -207,26 +284,53 @@ Central entry point for all client requests, handling HTTP REST API endpoints, W
     "flowMetadata": {
       "nodeCount": 1,
       "edgeCount": 0,
-      "lastModifiedBy": "507f1f77bcf86cd799439011",
       "version": "1.0.0"
     },
-    "createdAt": "2024-01-20T09:15:00Z",
-    "updatedAt": "2024-01-20T09:15:00Z"
+    "createdAt": "2024-01-20T09:15:00Z"
   }
 }
 ```
 
-**Error Responses**:
+#### Health Check
+
+##### `GET /health`
+
+Service health status and dependencies.
+
+**Response (200):**
 ```json
-// 400 Bad Request
+{
+  "service": "api-gateway",
+  "status": "healthy",
+  "version": "2.0.0",
+  "environment": "production",
+  "uptime": 86400,
+  "dependencies": {
+    "mongodb": "healthy",
+    "redis": "healthy",
+    "websocket": "healthy"
+  },
+  "websocketConnections": {
+    "totalConnections": 42,
+    "activeConnections": 35
+  },
+  "timestamp": "2024-01-20T10:00:00Z"
+}
+```
+
+### Error Responses
+
+All endpoints return consistent error responses:
+
+```json
 {
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Request validation failed",
     "details": [
       {
-        "field": "name",
-        "message": "Project name is required",
+        "field": "email",
+        "message": "Email is required",
         "value": ""
       }
     ],
@@ -234,200 +338,47 @@ Central entry point for all client requests, handling HTTP REST API endpoints, W
     "timestamp": "2024-01-20T09:15:00Z"
   }
 }
-
-// 401 Unauthorized
-{
-  "error": {
-    "code": "AUTHENTICATION_ERROR",
-    "message": "Invalid or expired token",
-    "correlationId": "req_1642680900_abc123",
-    "timestamp": "2024-01-20T09:15:00Z"
-  }
-}
-
-// 409 Conflict
-{
-  "error": {
-    "code": "CONFLICT",
-    "message": "A project with this name already exists in your workspace",
-    "correlationId": "req_1642680900_abc123",
-    "timestamp": "2024-01-20T09:15:00Z"
-  }
-}
 ```
 
----
+**Common Error Codes:**
+- `VALIDATION_ERROR` (400) - Request validation failed
+- `AUTHENTICATION_ERROR` (401) - Invalid or expired token
+- `AUTHORIZATION_ERROR` (403) - Insufficient permissions
+- `NOT_FOUND` (404) - Resource not found
+- `CONFLICT` (409) - Resource conflict
+- `RATE_LIMIT_EXCEEDED` (429) - Too many requests
+- `INTERNAL_ERROR` (500) - Server error
 
-## 📡 **Event-Driven Communication**
+## 🌐 WebSocket API
 
-### **Published Events (Events this service emits)**
+### Connection
 
-#### **USER_MESSAGE_RECEIVED**
-- **Trigger**: When user sends message via WebSocket
-- **Frequency**: High volume during active conversations
-- **Consumers**: cognitive-core service
-
-**Event Schema**:
-```json
-{
-  "eventType": "USER_MESSAGE_RECEIVED",
-  "eventId": "evt_1642680900_abc123",
-  "timestamp": "2024-01-20T10:00:00Z",
-  "emittedBy": "api-gateway",
-  "data": {
-    "userId": "507f1f77bcf86cd799439011",
-    "projectId": "507f1f77bcf86cd799439013",
-    "workspaceId": "507f1f77bcf86cd799439012",
-    "message": "Add a login screen with email and password fields",
-    "qualityMode": "standard|detailed|creative",
-    "clientId": "client_507f1f77bcf86cd799439011_1642680900_abc123"
-  },
-  "metadata": {
-    "correlationId": "req_1642680900_abc123",
-    "sessionId": "sess_1642680900_def456"
-  }
-}
+```javascript
+const ws = new WebSocket('ws://localhost:3000?token=JWT_TOKEN&projectId=PROJECT_ID');
 ```
 
-#### **USER_PLAN_APPROVED**
-- **Trigger**: When user approves/rejects AI-generated plan
-- **Frequency**: Medium volume during plan approval flows
-- **Consumers**: cognitive-core service
+### Connection Flow
 
-**Event Schema**:
-```json
-{
-  "eventType": "USER_PLAN_APPROVED",
-  "eventId": "evt_1642680900_def456",
-  "timestamp": "2024-01-20T10:05:00Z",
-  "emittedBy": "api-gateway",
-  "data": {
-    "userId": "507f1f77bcf86cd799439011",
-    "projectId": "507f1f77bcf86cd799439013",
-    "approved": true,
-    "plan": [
-      {
-        "step": 1,
-        "action": "Create login screen node",
-        "description": "Add new screen node with login form"
-      }
-    ],
-    "currentFlow": {
-      "nodes": [...],
-      "edges": [...]
-    }
-  },
-  "metadata": {
-    "correlationId": "req_1642680900_abc123"
-  }
-}
-```
+1. **Authentication**: JWT token validated before WebSocket upgrade
+2. **Authorization**: Project access permissions verified
+3. **Room Assignment**: User joined to project-specific room
+4. **Connection Confirmation**: `connection_established` message sent
 
-#### **CLIENT_CONNECTED / CLIENT_DISCONNECTED**
-- **Trigger**: WebSocket connection lifecycle events
-- **Frequency**: Medium volume based on user activity
-- **Consumers**: All services (for connection tracking)
+### Message Types
 
-**Event Schema**:
-```json
-{
-  "eventType": "CLIENT_CONNECTED",
-  "eventId": "evt_1642680900_ghi789",
-  "timestamp": "2024-01-20T09:30:00Z",
-  "emittedBy": "api-gateway",
-  "data": {
-    "userId": "507f1f77bcf86cd799439011",
-    "projectId": "507f1f77bcf86cd799439013",
-    "workspaceId": "507f1f77bcf86cd799439012",
-    "clientId": "client_507f1f77bcf86cd799439011_1642680900_abc123"
-  },
-  "metadata": {
-    "gatewayId": "gateway-1",
-    "connectionType": "websocket"
-  }
-}
-```
+#### Incoming Messages (Client → Server)
 
-### **Consumed Events (Events this service listens to)**
-
-#### **USER_RESPONSE_READY**
-- **Source**: cognitive-core service
-- **Purpose**: Receive AI assistant responses to forward to WebSocket clients
-- **Handler**: WebSocket message forwarding
-- **Failure Strategy**: Log error, send generic error message to client
-
-**Expected Schema**:
-```json
-{
-  "eventType": "USER_RESPONSE_READY",
-  "data": {
-    "userId": "507f1f77bcf86cd799439011",
-    "projectId": "507f1f77bcf86cd799439013",
-    "originalEventId": "evt_1642680900_abc123",
-    "response": {
-      "type": "message|plan_for_approval|confirmation",
-      "message": "I'll help you add a login screen...",
-      "plan": [...],
-      "metadata": {
-        "processingTime": 2.3,
-        "agentsUsed": ["manager", "planner", "architect"]
-      }
-    }
-  }
-}
-```
-
-#### **FLOW_UPDATED**
-- **Source**: flow-service
-- **Purpose**: Broadcast flow changes to connected WebSocket clients
-- **Handler**: WebSocket broadcast to project members
-- **Failure Strategy**: Log error, client will request full refresh
-
-**Expected Schema**:
-```json
-{
-  "eventType": "FLOW_UPDATED",
-  "data": {
-    "projectId": "507f1f77bcf86cd799439013",
-    "userId": "507f1f77bcf86cd799439011",
-    "flow": {
-      "metadata": {...},
-      "nodes": [...],
-      "edges": [...]
-    },
-    "changeType": "node_added|node_updated|edge_added|full_update",
-    "changes": [...]
-  }
-}
-```
-
----
-
-## 🌐 **WebSocket Protocol**
-
-### **Connection Endpoint**
-```
-ws://localhost:3000/ws?token=JWT_TOKEN&projectId=PROJECT_ID&workspaceId=WORKSPACE_ID
-```
-
-### **Connection Verification**
-- JWT token validation before WebSocket upgrade
-- Project access permission verification
-- Rate limiting (10 connections per 5 minutes per IP)
-
-### **Incoming Message Types**
-
-#### **user_message**
+##### User Message
 ```json
 {
   "type": "user_message",
-  "message": "Add a forgot password link to the login form",
+  "message": "Add a login screen with email and password fields",
   "qualityMode": "standard|detailed|creative",
   "messageId": "msg_1642680900_abc123"
 }
 ```
 
-#### **plan_approved**
+##### Plan Approval
 ```json
 {
   "type": "plan_approved",
@@ -438,17 +389,17 @@ ws://localhost:3000/ws?token=JWT_TOKEN&projectId=PROJECT_ID&workspaceId=WORKSPAC
 }
 ```
 
-#### **image_upload**
+##### Image Upload
 ```json
 {
   "type": "image_upload",
   "imageData": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA...",
   "mimeType": "image/jpeg",
-  "description": "Optional description of the image"
+  "description": "Login screen mockup"
 }
 ```
 
-#### **cursor_position**
+##### Cursor Position (Collaboration)
 ```json
 {
   "type": "cursor_position",
@@ -459,241 +410,120 @@ ws://localhost:3000/ws?token=JWT_TOKEN&projectId=PROJECT_ID&workspaceId=WORKSPAC
 }
 ```
 
-### **Outgoing Message Types**
+#### Outgoing Messages (Server → Client)
 
-#### **connection_established**
+##### Connection Established
 ```json
 {
   "type": "connection_established",
   "clientId": "client_507f1f77bcf86cd799439011_1642680900_abc123",
   "projectId": "507f1f77bcf86cd799439013",
-  "workspaceId": "507f1f77bcf86cd799439012",
-  "connectedAt": "2024-01-20T09:30:00Z",
-  "timestamp": "2024-01-20T09:30:00Z"
+  "connectedAt": "2024-01-20T09:30:00Z"
 }
 ```
 
-#### **assistant_response**
+##### Assistant Response
 ```json
 {
   "type": "assistant_response",
   "message": "I'll help you add a login screen. Here's my plan:",
-  "responseType": "message|plan_for_approval|confirmation",
+  "responseType": "plan_for_approval",
   "plan": [
     {
       "step": 1,
       "action": "Create login screen node",
-      "description": "Add new screen node with login form components"
+      "description": "Add new screen node with email and password fields"
     }
   ],
-  "correlationId": "evt_1642680900_abc123",
-  "timestamp": "2024-01-20T10:00:00Z"
+  "correlationId": "evt_1642680900_abc123"
 }
 ```
 
-#### **flow_updated**
+##### Flow Updated
 ```json
 {
   "type": "flow_updated",
   "flow": {
-    "metadata": {
-      "flowName": "User Authentication Flow",
-      "version": "1.2.0"
-    },
     "nodes": [...],
     "edges": [...]
   },
   "updatedBy": "507f1f77bcf86cd799439011",
-  "changeType": "node_added",
-  "timestamp": "2024-01-20T10:02:00Z"
+  "changeType": "node_added"
 }
 ```
 
-#### **error**
+##### Error Message
 ```json
 {
   "type": "error",
   "message": "Failed to process message",
   "error": "ValidationError: Message content is required",
   "code": "VALIDATION_ERROR",
-  "correlationId": "evt_1642680900_abc123",
-  "timestamp": "2024-01-20T10:00:00Z"
+  "correlationId": "evt_1642680900_abc123"
 }
 ```
 
----
+## 🔒 Security Features
 
-## 🗄️ **Data Layer Specification**
+### Authentication & Authorization
 
-### **Database Schema**
+- **JWT Tokens**: HS256 algorithm with configurable expiration
+- **Session Management**: Redis-based session storage
+- **Permission System**: Role-based access control (RBAC)
+- **Token Refresh**: Automatic token refresh mechanism
 
-#### **Collection: `users`**
-```json
-{
-  "_id": "ObjectId",
-  "email": "string (unique)",
-  "password": "string (bcrypt hashed)",
-  "firstName": "string",
-  "lastName": "string",
-  "workspaceId": "string",
-  "role": "user|admin|moderator",
-  "permissions": ["read_projects", "write_projects", "delete_own_projects"],
-  "emailVerified": "boolean",
-  "lastLoginAt": "Date",
-  "createdAt": "Date",
-  "updatedAt": "Date"
-}
+### Security Middleware
+
+- **Helmet.js**: Security headers (CSP, HSTS, X-Frame-Options)
+- **CORS**: Configurable cross-origin resource sharing
+- **Rate Limiting**: Sliding window rate limiting per IP/user
+- **Input Validation**: Joi schema validation for all endpoints
+- **Request Sanitization**: XSS and injection attack prevention
+
+### WebSocket Security
+
+- **Authentication**: JWT validation before WebSocket upgrade
+- **Authorization**: Project-level access control
+- **Message Validation**: Schema validation for all WebSocket messages
+- **Connection Limits**: Max connections per user/IP
+
+## 📁 Project Structure
+
+```
+src/
+├── config/
+│   └── index.js              # Configuration management
+├── middleware/
+│   ├── auth.js               # Authentication middleware
+│   ├── cors.js               # CORS configuration
+│   ├── error-handler.js      # Global error handling
+│   └── rate-limit.js         # Rate limiting configuration
+├── routes/
+│   ├── admin.js              # Admin endpoints
+│   ├── auth.js               # Authentication endpoints
+│   ├── health.js             # Health check endpoints
+│   └── projects.js           # Project management endpoints
+├── websocket/
+│   ├── connection-manager.js # WebSocket connection management
+│   ├── message-handler.js    # Message processing and routing
+│   └── room-manager.js       # Project room management
+└── server.js                 # Main application entry point
+
+tests/
+├── auth.test.js              # Authentication tests
+├── integration.test.js       # Integration tests
+└── websocket.test.js         # WebSocket tests
 ```
 
-**Indexes**:
-- `{ "email": 1 }` - Unique index for login
-- `{ "workspaceId": 1 }` - For workspace member queries
-- `{ "createdAt": 1 }` - For user statistics
+## 🧪 Testing
 
-#### **Collection: `projects`**
-```json
-{
-  "_id": "ObjectId",
-  "name": "string",
-  "description": "string",
-  "ownerId": "string",
-  "workspaceId": "string",
-  "members": [
-    {
-      "userId": "string",
-      "role": "owner|editor|viewer",
-      "permissions": ["read", "write", "admin"],
-      "joinedAt": "Date"
-    }
-  ],
-  "status": "active|inactive|deleted",
-  "visibility": "private|public|workspace",
-  "flowMetadata": {
-    "nodeCount": "number",
-    "edgeCount": "number",
-    "lastModifiedBy": "string",
-    "version": "string"
-  },
-  "settings": {
-    "allowComments": "boolean",
-    "allowGuestView": "boolean",
-    "autoSave": "boolean"
-  },
-  "createdAt": "Date",
-  "updatedAt": "Date",
-  "deletedAt": "Date",
-  "deletedBy": "string"
-}
-```
+### Running Tests
 
-**Indexes**:
-- `{ "workspaceId": 1, "status": 1 }` - For workspace project queries
-- `{ "ownerId": 1 }` - For user's owned projects
-- `{ "members.userId": 1 }` - For user's shared projects
-- `{ "name": "text", "description": "text" }` - For search functionality
-
-#### **Collection: `conversations`**
-```json
-{
-  "_id": "ObjectId",
-  "projectId": "string",
-  "userId": "string",
-  "role": "user|assistant",
-  "content": "string",
-  "metadata": {
-    "messageType": "text|plan|approval|image",
-    "processingTime": "number",
-    "agentsUsed": ["string"]
-  },
-  "timestamp": "Date",
-  "createdAt": "Date"
-}
-```
-
-**Indexes**:
-- `{ "projectId": 1, "timestamp": 1 }` - For conversation history
-- `{ "userId": 1, "createdAt": 1 }` - For user activity tracking
-
-### **Cache Strategy**
-
-#### **Redis Cache Keys**
-| Pattern | TTL | Purpose | Invalidation |
-|---------|-----|---------|-------------|
-| `session:user:{userId}` | 3600s | User session data | On logout/token refresh |
-| `project:members:{projectId}` | 300s | Project member list | On member add/remove |
-| `user:profile:{userId}` | 1800s | User profile cache | On profile update |
-| `rate_limit:{ip}:{endpoint}` | 900s | Rate limiting counters | TTL expiry |
-
----
-
-## ⚙️ **Configuration & Environment**
-
-### **Environment Variables**
-| Variable | Required | Default | Description | Example |
-|----------|----------|---------|-------------|---------|
-| `API_GATEWAY_PORT` | ❌ | `3000` | HTTP server port | `3000` |
-| `NODE_ENV` | ✅ | `development` | Environment mode | `production` |
-| `MONGODB_URI` | ✅ | - | MongoDB connection string | `mongodb://localhost:27017/ux-flow-engine` |
-| `REDIS_URL` | ✅ | - | Redis connection string | `redis://localhost:6379` |
-| `JWT_SECRET` | ✅ | - | JWT signing secret key | `your-super-secret-jwt-key` |
-| `JWT_EXPIRES_IN` | ❌ | `7d` | JWT token expiration | `7d` |
-| `RATE_LIMIT_WINDOW_MS` | ❌ | `900000` | Rate limit window (15 min) | `900000` |
-| `RATE_LIMIT_MAX_REQUESTS` | ❌ | `100` | Max requests per window | `100` |
-| `ALLOWED_ORIGINS` | ❌ | - | CORS allowed origins (comma-separated) | `https://app.uxflow.com,https://staging.uxflow.com` |
-| `LOG_LEVEL` | ❌ | `info` | Logging verbosity | `debug` |
-
-### **Secrets (Managed via Secret Manager)**
-| Secret Name | Purpose | Rotation | Access Level |
-|-------------|---------|----------|--------------|
-| `JWT_SECRET` | Token signing/verification | Quarterly | Service account only |
-| `MONGODB_URI` | Database authentication | Monthly | Database admin only |
-| `REDIS_URL` | Cache authentication | Monthly | Cache admin only |
-
-### **Feature Flags**
-| Flag | Default | Purpose | Dependencies |
-|------|---------|---------|-------------|
-| `ENABLE_WEBSOCKET_COMPRESSION` | `true` | Enable WebSocket message compression | None |
-| `ENABLE_CROSS_ORIGIN_WEBSOCKETS` | `false` | Allow WebSocket connections from different origins | Security review |
-| `ENABLE_DETAILED_ERROR_RESPONSES` | `false` | Include stack traces in error responses | Development only |
-
----
-
-## 🛠️ **Development & Operations**
-
-### **Local Development Setup**
-```bash
-# Prerequisites
-node --version  # Requires Node.js 18+
-npm --version   # Requires npm 8+
-mongod --version # Requires MongoDB 5.0+
-redis-server --version # Requires Redis 6.0+
-
-# Installation
-git clone <repository>
-cd services/api-gateway
-npm install
-
-# Environment setup
-cp .env.example .env
-# Edit .env with your configuration:
-# - Add MongoDB connection string
-# - Add Redis connection string  
-# - Add JWT secret key
-# - Configure CORS origins
-
-# Development mode (with hot reload)
-npm run dev
-
-# Verify service health
-curl http://localhost:3000/health
-```
-
-### **Testing**
 ```bash
 # Unit tests
 npm test
 
-# Integration tests (requires running MongoDB/Redis)
+# Integration tests (requires MongoDB and Redis)
 npm run test:integration
 
 # WebSocket tests
@@ -706,131 +536,107 @@ npm run test:coverage
 npm run test:watch
 ```
 
-### **Build & Deploy**
-```bash
-# Build Docker image
-docker build -t ux-flow/api-gateway .
+### Test Configuration
 
-# Run in Docker with dependencies
-docker-compose up --build
+Tests use Jest with the following setup:
+- **Unit Tests**: Mock external dependencies
+- **Integration Tests**: Use test database instances
+- **WebSocket Tests**: Real WebSocket connections with test clients
+- **Coverage**: Minimum 80% coverage required
 
-# Deploy to production (Kubernetes)
-kubectl apply -f k8s/api-gateway.yaml
+### Example Test
+
+```javascript
+describe('Authentication', () => {
+  it('should authenticate valid user', async () => {
+    const response = await request(app)
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'test@example.com',
+        password: 'password123'
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.token).toBeDefined();
+    expect(response.body.user.email).toBe('test@example.com');
+  });
+});
 ```
 
----
+## 📊 Performance Metrics
 
-## 🏥 **Health & Monitoring**
+### Expected Performance
 
-### **Health Check Endpoint**
-- **URL**: `GET /health`
-- **Response Time**: < 200ms
-- **Dependencies Checked**: 
-  - MongoDB connection status
-  - Redis connection status
-  - WebSocket server status
+- **HTTP Throughput**: 1,000 requests/second
+- **WebSocket Capacity**: 500 concurrent connections
+- **Response Time**: < 100ms (95th percentile)
+- **Memory Usage**: ~200MB baseline (scales with connections)
+- **CPU Usage**: ~15% baseline (spikes during auth bursts)
 
-**Response Schema**:
-```json
-{
-  "service": "api-gateway",
-  "status": "ok|degraded|error",
-  "version": "2.0.0",
-  "environment": "production",
-  "uptime": 86400,
-  "dependencies": {
-    "mongodb": "ok|error",
-    "redis": "ok|error", 
-    "websocket": "ok|error"
-  },
-  "websocketConnections": {
-    "totalConnections": 42,
-    "activeConnections": 35,
-    "connectionsByProject": {
-      "507f1f77bcf86cd799439013": 12,
-      "507f1f77bcf86cd799439014": 23
-    }
-  },
-  "timestamp": "2024-01-20T10:00:00Z"
-}
-```
+### Performance Optimizations
 
-### **Metrics & Observability**
-- **Metrics Endpoint**: `/metrics` (Prometheus format)
-- **Key Performance Indicators**:
-  - HTTP request latency (p50, p95, p99)
-  - HTTP request rate (requests per second)
-  - HTTP error rate (percentage)
-  - WebSocket connection count (active/total)
-  - WebSocket message rate (messages per second)
-  - Authentication success/failure rate
-  - Rate limiting trigger rate
+- **Connection Pooling**: MongoDB and Redis connection pools
+- **Message Broadcasting**: Redis pub/sub for horizontal scaling
+- **Caching**: User sessions and project metadata caching
+- **Compression**: WebSocket message compression
+- **Keep-Alive**: HTTP keep-alive for persistent connections
 
-### **Logging Standards**
+## 📈 Monitoring & Observability
+
+### Health Monitoring
+
+- **Health Endpoint**: `/health` - Comprehensive dependency checks
+- **Metrics Endpoint**: `/metrics` - Prometheus-compatible metrics
+- **Readiness Probe**: Database and cache connectivity
+- **Liveness Probe**: Service responsiveness check
+
+### Key Metrics
+
+- `http_requests_total` - Total HTTP requests by method and status
+- `http_request_duration_seconds` - HTTP request latency histogram
+- `websocket_connections_active` - Active WebSocket connections
+- `websocket_messages_total` - WebSocket messages by type
+- `auth_attempts_total` - Authentication attempts by result
+- `rate_limit_hits_total` - Rate limit violations
+
+### Logging
+
+Structured JSON logging with correlation IDs:
+
 ```json
 {
   "timestamp": "2024-01-20T10:00:00Z",
-  "level": "info|warn|error|debug",
+  "level": "info",
   "service": "api-gateway",
   "message": "User authenticated successfully",
   "correlationId": "req_1642680900_abc123",
   "userId": "507f1f77bcf86cd799439011",
   "metadata": {
     "endpoint": "/api/v1/auth/login",
-    "method": "POST",
-    "responseTime": 250,
-    "userAgent": "Mozilla/5.0...",
-    "ip": "192.168.1.100"
+    "responseTime": 150,
+    "userAgent": "Mozilla/5.0..."
   }
 }
 ```
 
-### **Alert Conditions**
-| Metric | Threshold | Severity | Action |
-|--------|-----------|----------|--------|
-| HTTP error rate | > 5% | High | Immediate investigation |
-| Response time p95 | > 2s | Medium | Performance review |
-| WebSocket connection failures | > 10% | Medium | WebSocket infrastructure check |
-| Authentication failure rate | > 20% | High | Security incident investigation |
-| Health check failures | > 3 consecutive | Critical | Auto-scaling trigger |
-| Memory usage | > 85% | Medium | Memory leak investigation |
+### Alerting
 
----
+| Condition | Threshold | Severity | Response |
+|-----------|-----------|----------|----------|
+| HTTP Error Rate | > 5% | Critical | Immediate investigation |
+| Response Time p95 | > 2s | High | Performance review |
+| WebSocket Failures | > 10% | Medium | WebSocket infrastructure check |
+| Auth Failure Rate | > 20% | High | Security incident response |
+| Memory Usage | > 85% | Medium | Memory leak investigation |
 
-## 🔧 **Service-Specific Implementation Details**
+## 🔧 Troubleshooting
 
-### **Business Logic Overview**
-API Gateway implements a multi-layered architecture with request routing, authentication middleware, rate limiting, and WebSocket connection management. The service handles both synchronous HTTP requests and asynchronous real-time communication through WebSocket connections organized into project-based rooms.
+### Common Issues
 
-### **Critical Code Paths**
-- **Authentication Flow**: JWT validation → User context injection → Permission checking
-- **WebSocket Connection**: Token verification → Room assignment → Message routing → Event emission
-- **Request Processing**: Rate limiting → CORS validation → Route matching → Authentication → Business logic
+#### Service Won't Start
 
-### **Performance Considerations**
-- Expected throughput: 1000 HTTP requests/second, 500 concurrent WebSocket connections
-- Memory usage: ~200 MB under normal load (scales with concurrent connections)
-- CPU usage: ~15% under normal load (spikes during authentication bursts)
-- WebSocket message broadcasting optimized with Redis pub/sub for horizontal scaling
-
-### **Security Considerations**
-- JWT tokens with 7-day expiration and secure signing algorithm (HS256)
-- Rate limiting with sliding window implementation
-- CORS configuration with strict origin validation
-- Input validation using Joi schemas for all endpoints
-- WebSocket connections authenticated before upgrade
-- SQL injection prevention through MongoDB ODM
-- XSS protection via Helmet.js security headers
-
----
-
-## 🚨 **Troubleshooting Guide**
-
-### **Common Issues**
-
-#### **Service won't start**
 ```bash
-# Check logs for startup errors
+# Check logs
 docker logs api-gateway-container
 
 # Verify environment variables
@@ -843,91 +649,173 @@ npm run test:db
 lsof -i :3000
 ```
 
-#### **WebSocket connections failing**
-1. Verify JWT token validity and expiration
-2. Check CORS configuration for WebSocket origin
-3. Confirm Redis connectivity for room management
-4. Review rate limiting settings for WebSocket connections
-5. Check MongoDB connectivity for user/project validation
+#### WebSocket Connection Failures
 
-#### **High authentication failure rate**
-1. Check JWT secret key configuration
-2. Verify MongoDB user collection accessibility
-3. Review rate limiting settings for auth endpoints
-4. Check bcrypt password comparison performance
-5. Analyze login attempt patterns for attacks
+1. **Token Issues**: Verify JWT token validity and expiration
+2. **CORS Problems**: Check WebSocket CORS configuration
+3. **Redis Connectivity**: Confirm Redis connection for room management
+4. **Rate Limiting**: Review rate limiting settings
+5. **Project Access**: Verify user has project access permissions
 
-#### **Performance degradation**
-1. Monitor MongoDB query performance (add indexes if needed)
-2. Check Redis connection pool utilization
-3. Review WebSocket connection count and memory usage
-4. Analyze rate limiting effectiveness
-5. Check for memory leaks in WebSocket connection management
+#### High Authentication Failure Rate
 
-### **Debug Mode**
+1. **JWT Configuration**: Check JWT secret consistency across services
+2. **Database Issues**: Verify MongoDB user collection accessibility
+3. **Rate Limiting**: Review auth endpoint rate limits
+4. **Performance**: Check bcrypt performance under load
+5. **Security**: Analyze patterns for potential attacks
+
+#### Performance Degradation
+
+1. **Database Performance**: Monitor query execution times and add indexes
+2. **Redis Performance**: Check connection pool utilization
+3. **Memory Leaks**: Monitor WebSocket connection cleanup
+4. **Rate Limiting**: Verify rate limiting effectiveness
+5. **Event Processing**: Check Redis pub/sub performance
+
+### Debug Mode
+
 ```bash
 # Enable debug logging
 LOG_LEVEL=debug npm run dev
 
-# Enable specific debug categories
-DEBUG=api-gateway:* npm run dev
-
-# Enable WebSocket debug logging
+# Enable WebSocket debugging
 DEBUG=websocket:* npm run dev
 
-# Enable authentication debug logging
+# Enable authentication debugging
 DEBUG=auth:* npm run dev
 ```
 
+## 🚀 Deployment
+
+### Docker Deployment
+
+```bash
+# Build image
+docker build -t ux-flow/api-gateway:latest .
+
+# Run with dependencies
+docker-compose up -d
+```
+
+### Kubernetes Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: ux-flow/api-gateway:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: uri
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: secret
+```
+
+### Environment Configuration
+
+| Environment | MongoDB | Redis | CORS Origins |
+|-------------|---------|-------|--------------|
+| Development | Local instance | Local instance | `*` |
+| Staging | MongoDB Atlas | Redis Cloud | `staging.uxflow.app` |
+| Production | MongoDB Atlas | Redis Cloud | `app.uxflow.app` |
+
+## 🔄 Event System Integration
+
+### Published Events
+
+#### `USER_MESSAGE_RECEIVED`
+```json
+{
+  "eventType": "USER_MESSAGE_RECEIVED",
+  "eventId": "evt_1642680900_abc123",
+  "timestamp": "2024-01-20T10:00:00Z",
+  "emittedBy": "api-gateway",
+  "data": {
+    "userId": "507f1f77bcf86cd799439011",
+    "projectId": "507f1f77bcf86cd799439013",
+    "message": "Add a login screen",
+    "qualityMode": "standard"
+  }
+}
+```
+
+#### `USER_PLAN_APPROVED`
+```json
+{
+  "eventType": "USER_PLAN_APPROVED",
+  "eventId": "evt_1642680900_def456",
+  "timestamp": "2024-01-20T10:05:00Z",
+  "emittedBy": "api-gateway",
+  "data": {
+    "userId": "507f1f77bcf86cd799439011",
+    "projectId": "507f1f77bcf86cd799439013",
+    "approved": true,
+    "plan": [...],
+    "currentFlow": {...}
+  }
+}
+```
+
+### Consumed Events
+
+#### `USER_RESPONSE_READY`
+Forwards AI responses to WebSocket clients.
+
+#### `FLOW_UPDATED`
+Broadcasts flow changes to project collaborators.
+
+## 📚 Related Services
+
+- **[Cognitive Core](../cognitive-core/README.md)**: Multi-agent AI conversation processing
+- **[Flow Service](../flow-service/README.md)**: Flow data management and persistence
+- **[Knowledge Service](../knowledge-service/README.md)**: Knowledge retrieval and RAG
+- **[User Management](../user-management/README.md)**: User authentication and workspace management
+
+## 📖 Additional Documentation
+
+- [System Architecture](../../docs/ARCHITECTURE.md)
+- [API Reference](../../docs/API_REFERENCE.md)
+- [Deployment Guide](../../docs/DEPLOYMENT.md)
+- [Development Setup](../../docs/DEVELOPMENT.md)
+- [WebSocket Protocol](../../docs/WEBSOCKET_PROTOCOL.md)
+
+## 🤝 Contributing
+
+Please read our [Contributing Guide](../../CONTRIBUTING.md) for development and contribution guidelines.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details.
+
 ---
 
-## 📚 **Additional Resources**
-
-### **Related Documentation**
-- [System Architecture Overview](../docs/ARCHITECTURE.md)
-- [Cognitive Core Service Integration](../cognitive-core/README.md)
-- [Flow Service Integration](../flow-service/README.md)
-- [WebSocket Protocol Specification](../docs/WEBSOCKET_PROTOCOL.md)
-- [Authentication & Authorization Guide](../docs/AUTH.md)
-- [Deployment Guide](../docs/DEPLOYMENT.md)
-
-### **External References**
-- [Express.js Documentation](https://expressjs.com/en/api.html)
-- [WebSocket API Documentation](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
-- [JWT Specification (RFC 7519)](https://tools.ietf.org/html/rfc7519)
-- [MongoDB Node.js Driver](https://docs.mongodb.com/drivers/node/)
-- [Redis Node.js Client](https://github.com/redis/node-redis)
-
----
-
-## 📝 **Changelog**
-
-### **Version 2.0.0** (2024-01-01)
-- Initial microservice implementation
-- WebSocket real-time communication
-- Multi-agent event system integration
-- JWT authentication system
-- Project-based collaboration features
-
-### **Version 2.0.1** (2024-01-15)
-- Enhanced WebSocket room management
-- Improved rate limiting strategies
-- Cross-gateway WebSocket synchronization
-- Better error handling and logging
-
----
-
-## 👥 **Maintainers**
-
-| Role | Contact | Responsibilities |
-|------|---------|-----------------|
-| Service Owner | @api-gateway-team | Architecture decisions, breaking changes, security |
-| Lead Developer | @john-doe | Day-to-day development, code reviews, bug fixes |
-| DevOps Contact | @devops-team | Deployment, infrastructure, monitoring, scaling |
-| Security Contact | @security-team | Authentication, authorization, vulnerability management |
-
----
-
-> **🔄 Last Updated**: 2024-01-20  
-> **📋 Documentation Version**: 2.0  
-> **🤖 Auto-validation**: ✅ API schemas validated | ✅ Event schemas validated | ✅ WebSocket protocol documented
+**Service Owner**: API Gateway Team  
+**Last Updated**: 2024-01-20  
+**Version**: 2.0.0

@@ -46,3 +46,12 @@ export { DataComplianceManager } from './compliance/data-compliance-manager.js';
 // Security
 export { EncryptionUtils } from './security/encryption-utils.js';
 export { PromptSecurity } from './security/prompt-security.js';
+
+// Credit System
+export { 
+  requireCredits, 
+  consumeCredits, 
+  calculateCreditCost,
+  consumeCreditsAfterSuccess,
+  CREDIT_COSTS 
+} from './middleware/credit-check.js';
