@@ -2,650 +2,594 @@
 // SERVICES/USER-MANAGEMENT/src/routes/workspaces.js
 // ==========================================
 import express from 'express';
-import rateLimit from 'express-rate-limit';
-import { 
-  validateSchema,
-  workspaceCreateSchema,
-  workspaceUpdateSchema,
-  projectMemberSchema,
-  requireAuth 
-} from '@ux-flow/common';
-import config from '../config/index.js';
+import { validateSchema, workspaceCreateSchema, workspaceUpdateSchema, projectMemberSchema } from '@ux-flow/common';
+import { asyncHandler, ValidationError, AuthorizationError, NotFoundError } from '../middleware/error-handler.js';
+import { authMiddleware, requireRole, requirePermission } from '../middleware/auth.js';
+import { apiRateLimit } from '../middleware/rate-limit.js';
 
 const router = express.Router();
 
-// Rate limiting for workspace operations
-const workspaceRateLimit = rateLimit({
-  windowMs: config.rateLimit.workspace.windowMs,
-  max: config.rateLimit.workspace.max,
-  message: {
-    error: 'Too many workspace operations',
-    message: 'Please wait before performing more workspace operations',
-  },
-});
+// Apply API rate limiting
+router.use(apiRateLimit);
 
-// Apply authentication to all workspace routes
-router.use(requireAuth);
+// Get user's workspaces
+router.get('/me', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = req.user;
 
-// Apply rate limiting to creation and modification operations
-router.use(workspaceRateLimit);
+  const workspaces = await req.workspaceManager.getUserWorkspaces(userId);
 
-// Get all workspaces for the user
-router.get('/', async (req, res) => {
-  try {
-    const { page = 1, limit = 20, search } = req.query;
-    
-    const workspaces = await req.workspaceManager.getUserWorkspaces(req.user.userId, {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      search,
-    });
-
-    res.json(workspaces);
-
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to get workspaces',
-      message: error.message,
-      correlationId: req.correlationId,
-    });
-  }
-});
-
-// Create new workspace
-router.post('/', async (req, res) => {
-  try {
-    const validation = validateSchema(workspaceCreateSchema, req.body);
-    if (!validation.isValid) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: validation.errors,
-        correlationId: req.correlationId,
-      });
-    }
-
-    const workspace = await req.workspaceManager.createWorkspace(
-      req.user.userId,
-      validation.value
-    );
-
-    res.status(201).json({
-      message: 'Workspace created successfully',
-      workspace,
-    });
-
-  } catch (error) {
-    if (error.message.includes('limit') || error.message.includes('maximum')) {
-      res.status(403).json({
-        error: 'Workspace limit reached',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('already have') || error.message.includes('exists')) {
-      res.status(409).json({
-        error: 'Workspace name conflict',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('must be') || error.message.includes('characters')) {
-      res.status(400).json({
-        error: 'Validation error',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to create workspace',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
-  }
-});
+  res.json({
+    workspaces: workspaces.map(workspace => ({
+      id: workspace.id,
+      name: workspace.name,
+      role: workspace.userRole,
+      isOwner: workspace.ownerId === userId,
+      projectCount: workspace.projectCount,
+      maxProjects: workspace.settings.maxProjects,
+      memberCount: workspace.members?.length || 0,
+      createdAt: workspace.createdAt,
+      joinedAt: workspace.joinedAt,
+    })),
+  });
+}));
 
 // Get specific workspace
-router.get('/:workspaceId', async (req, res) => {
-  try {
-    const { workspaceId } = req.params;
-    const { includeProjects = false } = req.query;
+router.get('/:workspaceId', authMiddleware, asyncHandler(async (req, res) => {
+  const { workspaceId } = req.params;
+  const { userId } = req.user;
 
-    const workspace = await req.workspaceManager.getWorkspace(
-      workspaceId,
-      req.user.userId
-    );
-
-    // Optionally include projects (will require integration with project service)
-    if (includeProjects === 'true') {
-      workspace.projects = await req.workspaceManager.getWorkspaceProjects(workspaceId);
-    }
-
-    res.json({
-      workspace,
-    });
-
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('access')) {
-      res.status(403).json({
-        error: 'Access denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to get workspace',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+  const workspace = await req.workspaceManager.getWorkspace(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
   }
-});
+
+  // Check if user has access to this workspace
+  const member = workspace.members.find(m => m.userId === userId);
+  if (!member && req.user.role !== 'admin') {
+    throw new AuthorizationError('You do not have access to this workspace');
+  }
+
+  // Get detailed member information
+  const membersWithDetails = await Promise.all(
+    workspace.members.map(async (member) => {
+      try {
+        const user = await req.userManager.getUser(member.userId);
+        return {
+          userId: member.userId,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: member.role,
+          joinedAt: member.joinedAt,
+          addedBy: member.addedBy,
+        };
+      } catch (error) {
+        req.logger.warn('Failed to get member details', error, {
+          memberId: member.userId,
+          workspaceId,
+        });
+        return {
+          userId: member.userId,
+          role: member.role,
+          joinedAt: member.joinedAt,
+          error: 'User not found',
+        };
+      }
+    })
+  );
+
+  res.json({
+    workspace: {
+      id: workspace.id,
+      name: workspace.name,
+      description: workspace.description,
+      ownerId: workspace.ownerId,
+      projectCount: workspace.projectCount,
+      maxProjects: workspace.settings.maxProjects,
+      settings: workspace.settings,
+      createdAt: workspace.createdAt,
+      updatedAt: workspace.updatedAt,
+    },
+    userRole: member?.role || (req.user.role === 'admin' ? 'admin' : null),
+    isOwner: workspace.ownerId === userId,
+    members: membersWithDetails,
+    memberCount: membersWithDetails.length,
+    usage: {
+      projects: workspace.projectCount,
+      maxProjects: workspace.settings.maxProjects,
+      usagePercentage: (workspace.projectCount / workspace.settings.maxProjects) * 100,
+    },
+  });
+}));
+
+// Create new workspace
+router.post('/', authMiddleware, asyncHandler(async (req, res) => {
+  const validation = validateSchema(workspaceCreateSchema, req.body);
+  if (!validation.isValid) {
+    throw new ValidationError('Workspace creation validation failed', validation.errors);
+  }
+
+  const { userId } = req.user;
+  const { name, description, settings } = validation.value;
+
+  // Check if user already owns a workspace (business rule)
+  const userWorkspaces = await req.workspaceManager.getUserWorkspaces(userId);
+  const ownedWorkspaces = userWorkspaces.filter(ws => ws.ownerId === userId);
+  
+  if (ownedWorkspaces.length >= 1 && req.user.role !== 'admin') {
+    throw new ValidationError('Users can only own one workspace. Please upgrade your plan for multiple workspaces.');
+  }
+
+  // Create workspace
+  const workspace = await req.workspaceManager.createWorkspace({
+    name,
+    description,
+    ownerId: userId,
+    settings: {
+      allowGuestAccess: false,
+      maxProjects: 10, // Default for free tier
+      ...settings,
+    },
+  });
+
+  // Update user's primary workspace
+  await req.userManager.updateUser(userId, {
+    workspaceId: workspace.id,
+  });
+
+  // Emit workspace creation event
+  req.eventEmitter.emit('WORKSPACE_CREATION_REQUESTED', {
+    workspaceId: workspace.id,
+    name: workspace.name,
+    ownerId: userId,
+    settings: workspace.settings,
+    correlationId: req.correlationId,
+  });
+
+  req.logger.info('Workspace created', {
+    workspaceId: workspace.id,
+    name: workspace.name,
+    ownerId: userId,
+    correlationId: req.correlationId,
+  });
+
+  res.status(201).json({
+    message: 'Workspace created successfully',
+    workspace: {
+      id: workspace.id,
+      name: workspace.name,
+      description: workspace.description,
+      role: 'owner',
+      isOwner: true,
+      projectCount: 0,
+      maxProjects: workspace.settings.maxProjects,
+      settings: workspace.settings,
+      createdAt: workspace.createdAt,
+    },
+  });
+}));
 
 // Update workspace
-router.patch('/:workspaceId', async (req, res) => {
-  try {
-    const { workspaceId } = req.params;
+router.patch('/:workspaceId', authMiddleware, asyncHandler(async (req, res) => {
+  const { workspaceId } = req.params;
+  const { userId } = req.user;
 
-    const validation = validateSchema(workspaceUpdateSchema, req.body);
-    if (!validation.isValid) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: validation.errors,
-        correlationId: req.correlationId,
-      });
-    }
-
-    const workspace = await req.workspaceManager.updateWorkspace(
-      workspaceId,
-      req.user.userId,
-      validation.value
-    );
-
-    res.json({
-      message: 'Workspace updated successfully',
-      workspace,
-    });
-
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('permission')) {
-      res.status(403).json({
-        error: 'Permission denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('must be') || error.message.includes('characters')) {
-      res.status(400).json({
-        error: 'Validation error',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to update workspace',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+  const validation = validateSchema(workspaceUpdateSchema, req.body);
+  if (!validation.isValid) {
+    throw new ValidationError('Workspace update validation failed', validation.errors);
   }
-});
 
-// Delete workspace
-router.delete('/:workspaceId', async (req, res) => {
-  try {
-    const { workspaceId } = req.params;
-    const { confirm } = req.body;
-
-    if (!confirm) {
-      return res.status(400).json({
-        error: 'Confirmation required',
-        message: 'You must confirm workspace deletion',
-        correlationId: req.correlationId,
-      });
-    }
-
-    await req.workspaceManager.deleteWorkspace(workspaceId, req.user.userId);
-
-    res.json({
-      message: 'Workspace deleted successfully',
-    });
-
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('permission') || error.message.includes('owner')) {
-      res.status(403).json({
-        error: 'Permission denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to delete workspace',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+  const workspace = await req.workspaceManager.getWorkspace(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
   }
-});
 
-// Get workspace members
-router.get('/:workspaceId/members', async (req, res) => {
-  try {
-    const { workspaceId } = req.params;
-    const { page = 1, limit = 50 } = req.query;
+  // Check permissions
+  const member = workspace.members.find(m => m.userId === userId);
+  const canUpdate = 
+    workspace.ownerId === userId ||
+    member?.role === 'admin' ||
+    req.user.role === 'admin';
 
-    const members = await req.workspaceManager.getWorkspaceMembers(workspaceId, {
-      userId: req.user.userId,
-      page: parseInt(page),
-      limit: parseInt(limit),
-    });
-
-    res.json(members);
-
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('access')) {
-      res.status(403).json({
-        error: 'Access denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to get workspace members',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+  if (!canUpdate) {
+    throw new AuthorizationError('You do not have permission to update this workspace');
   }
-});
+
+  const updates = validation.value;
+  const updatedWorkspace = await req.workspaceManager.updateWorkspace(workspaceId, updates);
+
+  req.logger.info('Workspace updated', {
+    workspaceId,
+    updatedFields: Object.keys(updates),
+    updatedBy: userId,
+    correlationId: req.correlationId,
+  });
+
+  res.json({
+    message: 'Workspace updated successfully',
+    workspace: {
+      id: updatedWorkspace.id,
+      name: updatedWorkspace.name,
+      description: updatedWorkspace.description,
+      settings: updatedWorkspace.settings,
+      updatedAt: updatedWorkspace.updatedAt,
+    },
+  });
+}));
 
 // Add member to workspace
-router.post('/:workspaceId/members', async (req, res) => {
-  try {
-    const { workspaceId } = req.params;
+router.post('/:workspaceId/members', authMiddleware, asyncHandler(async (req, res) => {
+  const { workspaceId } = req.params;
+  const { userId } = req.user;
 
-    const validation = validateSchema(projectMemberSchema, req.body);
-    if (!validation.isValid) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: validation.errors,
-        correlationId: req.correlationId,
-      });
-    }
-
-    const result = await req.workspaceManager.addMember(
-      workspaceId,
-      req.user.userId,
-      validation.value
-    );
-
-    res.status(201).json({
-      message: result.invitationId ? 'Invitation sent successfully' : 'Member added successfully',
-      member: result.invitationId ? null : result,
-      invitation: result.invitationId ? {
-        invitationId: result.invitationId,
-        expiresAt: result.expiresAt,
-      } : null,
-    });
-
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('permission')) {
-      res.status(403).json({
-        error: 'Permission denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('already') || error.message.includes('limit')) {
-      res.status(409).json({
-        error: 'Conflict',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('Invalid email')) {
-      res.status(400).json({
-        error: 'Validation error',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to add member',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+  const validation = validateSchema(projectMemberSchema, req.body);
+  if (!validation.isValid) {
+    throw new ValidationError('Member addition validation failed', validation.errors);
   }
-});
 
-// Update member role/permissions
-router.patch('/:workspaceId/members/:memberId', async (req, res) => {
-  try {
-    const { workspaceId, memberId } = req.params;
-    const { role, permissions } = req.body;
+  const { email, role, permissions } = validation.value;
 
-    if (!role && !permissions) {
-      return res.status(400).json({
-        error: 'Role or permissions must be provided',
-        correlationId: req.correlationId,
-      });
-    }
-
-    await req.workspaceManager.updateMemberRole(
-      workspaceId,
-      req.user.userId,
-      memberId,
-      role,
-      permissions
-    );
-
-    res.json({
-      message: 'Member updated successfully',
-    });
-
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace or member not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('permission') || error.message.includes('owner')) {
-      res.status(403).json({
-        error: 'Permission denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to update member',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+  const workspace = await req.workspaceManager.getWorkspace(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
   }
-});
+
+  // Check permissions
+  const member = workspace.members.find(m => m.userId === userId);
+  const canAddMembers = 
+    workspace.ownerId === userId ||
+    member?.role === 'admin' ||
+    req.user.role === 'admin';
+
+  if (!canAddMembers) {
+    throw new AuthorizationError('You do not have permission to add members to this workspace');
+  }
+
+  // Find user to add
+  const userToAdd = await req.userManager.getUserByEmail(email);
+  if (!userToAdd) {
+    throw new NotFoundError('User not found with this email address');
+  }
+
+  // Check if user is already a member
+  const isAlreadyMember = workspace.members.some(m => m.userId === userToAdd.id);
+  if (isAlreadyMember) {
+    throw new ValidationError('User is already a member of this workspace');
+  }
+
+  // Add member
+  await req.workspaceManager.addMember(workspaceId, {
+    userId: userToAdd.id,
+    role: role || 'member',
+    permissions: permissions || ['read_projects', 'write_projects'],
+    addedBy: userId,
+    joinedAt: new Date(),
+  });
+
+  // If user doesn't have a primary workspace, set this as their primary
+  if (!userToAdd.workspaceId) {
+    await req.userManager.updateUser(userToAdd.id, {
+      workspaceId,
+    });
+  }
+
+  // Emit member addition event
+  req.eventEmitter.emit('WORKSPACE_MEMBER_ADDED', {
+    workspaceId,
+    userId: userToAdd.id,
+    role: role || 'member',
+    addedBy: userId,
+    correlationId: req.correlationId,
+  });
+
+  req.logger.info('Member added to workspace', {
+    workspaceId,
+    newMemberEmail: email,
+    newMemberId: userToAdd.id,
+    role: role || 'member',
+    addedBy: userId,
+    correlationId: req.correlationId,
+  });
+
+  res.status(201).json({
+    message: 'Member added successfully',
+    member: {
+      userId: userToAdd.id,
+      email: userToAdd.email,
+      firstName: userToAdd.firstName,
+      lastName: userToAdd.lastName,
+      role: role || 'member',
+      joinedAt: new Date(),
+      addedBy: userId,
+    },
+  });
+}));
+
+// Update member role
+router.patch('/:workspaceId/members/:memberId', authMiddleware, asyncHandler(async (req, res) => {
+  const { workspaceId, memberId } = req.params;
+  const { userId } = req.user;
+  const { role, permissions } = req.body;
+
+  const workspace = await req.workspaceManager.getWorkspace(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
+  }
+
+  // Check permissions
+  const currentMember = workspace.members.find(m => m.userId === userId);
+  const canUpdateMembers = 
+    workspace.ownerId === userId ||
+    currentMember?.role === 'admin' ||
+    req.user.role === 'admin';
+
+  if (!canUpdateMembers) {
+    throw new AuthorizationError('You do not have permission to update members in this workspace');
+  }
+
+  // Cannot demote the owner
+  if (workspace.ownerId === memberId && role !== 'owner') {
+    throw new ValidationError('Cannot change the role of the workspace owner');
+  }
+
+  // Update member
+  const updates = {};
+  if (role !== undefined) updates.role = role;
+  if (permissions !== undefined) updates.permissions = permissions;
+
+  await req.workspaceManager.updateMember(workspaceId, memberId, updates);
+
+  req.logger.info('Workspace member updated', {
+    workspaceId,
+    memberId,
+    updates,
+    updatedBy: userId,
+    correlationId: req.correlationId,
+  });
+
+  res.json({
+    message: 'Member updated successfully',
+    memberId,
+    updates,
+  });
+}));
 
 // Remove member from workspace
-router.delete('/:workspaceId/members/:memberId', async (req, res) => {
-  try {
-    const { workspaceId, memberId } = req.params;
+router.delete('/:workspaceId/members/:memberId', authMiddleware, asyncHandler(async (req, res) => {
+  const { workspaceId, memberId } = req.params;
+  const { userId } = req.user;
+  const { reason = 'removed' } = req.body;
 
-    await req.workspaceManager.removeMember(
-      workspaceId,
-      req.user.userId,
-      memberId
-    );
+  const workspace = await req.workspaceManager.getWorkspace(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
+  }
 
-    res.json({
-      message: 'Member removed successfully',
+  // Cannot remove the owner
+  if (workspace.ownerId === memberId) {
+    throw new ValidationError('Cannot remove the workspace owner');
+  }
+
+  // Check permissions (admins and owners can remove, users can remove themselves)
+  const currentMember = workspace.members.find(m => m.userId === userId);
+  const canRemoveMembers = 
+    workspace.ownerId === userId ||
+    currentMember?.role === 'admin' ||
+    userId === memberId || // Self-removal
+    req.user.role === 'admin';
+
+  if (!canRemoveMembers) {
+    throw new AuthorizationError('You do not have permission to remove members from this workspace');
+  }
+
+  // Remove member
+  await req.workspaceManager.removeMember(workspaceId, memberId);
+
+  // Clear user's workspace reference if this was their primary workspace
+  const user = await req.userManager.getUser(memberId);
+  if (user && user.workspaceId === workspaceId) {
+    await req.userManager.updateUser(memberId, {
+      workspaceId: null,
     });
+  }
 
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace or member not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('permission') || error.message.includes('owner')) {
-      res.status(403).json({
-        error: 'Permission denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to remove member',
-        message: error.message,
-        correlationId: req.correlationId,
+  // Emit member removal event
+  req.eventEmitter.emit('WORKSPACE_MEMBER_REMOVED', {
+    workspaceId,
+    userId: memberId,
+    removedBy: userId,
+    reason,
+    correlationId: req.correlationId,
+  });
+
+  req.logger.info('Member removed from workspace', {
+    workspaceId,
+    removedMemberId: memberId,
+    removedBy: userId,
+    reason,
+    correlationId: req.correlationId,
+  });
+
+  res.json({
+    message: 'Member removed successfully',
+    memberId,
+    reason,
+  });
+}));
+
+// Transfer workspace ownership
+router.post('/:workspaceId/transfer-ownership', authMiddleware, asyncHandler(async (req, res) => {
+  const { workspaceId } = req.params;
+  const { userId } = req.user;
+  const { newOwnerId } = req.body;
+
+  if (!newOwnerId) {
+    throw new ValidationError('New owner ID is required');
+  }
+
+  const workspace = await req.workspaceManager.getWorkspace(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
+  }
+
+  // Only current owner can transfer ownership
+  if (workspace.ownerId !== userId && req.user.role !== 'admin') {
+    throw new AuthorizationError('Only the workspace owner can transfer ownership');
+  }
+
+  // Verify new owner is a member
+  const newOwnerMember = workspace.members.find(m => m.userId === newOwnerId);
+  if (!newOwnerMember) {
+    throw new ValidationError('New owner must be a member of the workspace');
+  }
+
+  // Transfer ownership
+  await req.workspaceManager.transferOwnership(workspaceId, newOwnerId);
+
+  req.logger.info('Workspace ownership transferred', {
+    workspaceId,
+    oldOwnerId: userId,
+    newOwnerId,
+    correlationId: req.correlationId,
+  });
+
+  res.json({
+    message: 'Ownership transferred successfully',
+    workspaceId,
+    newOwnerId,
+  });
+}));
+
+// Delete workspace
+router.delete('/:workspaceId', authMiddleware, asyncHandler(async (req, res) => {
+  const { workspaceId } = req.params;
+  const { userId } = req.user;
+  const { reason = 'user_request' } = req.body;
+
+  const workspace = await req.workspaceManager.getWorkspace(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
+  }
+
+  // Only owner can delete workspace
+  if (workspace.ownerId !== userId && req.user.role !== 'admin') {
+    throw new AuthorizationError('Only the workspace owner can delete the workspace');
+  }
+
+  // Soft delete workspace
+  await req.workspaceManager.deleteWorkspace(workspaceId, reason);
+
+  // Update all members' workspace references
+  for (const member of workspace.members) {
+    const user = await req.userManager.getUser(member.userId);
+    if (user && user.workspaceId === workspaceId) {
+      await req.userManager.updateUser(member.userId, {
+        workspaceId: null,
       });
     }
   }
-});
 
-// Get workspace invitations
-router.get('/:workspaceId/invitations', async (req, res) => {
-  try {
-    const { workspaceId } = req.params;
-    const { status = 'pending' } = req.query;
+  // Emit workspace deletion event for cleanup
+  req.eventEmitter.emit('WORKSPACE_DELETED', {
+    workspaceId,
+    name: workspace.name,
+    deletedBy: userId,
+    reason,
+    memberCount: workspace.members.length,
+    projectCount: workspace.projectCount,
+    correlationId: req.correlationId,
+  });
 
-    const invitations = await req.workspaceManager.getWorkspaceInvitations(
-      workspaceId,
-      req.user.userId,
-      { status }
-    );
+  req.logger.info('Workspace deleted', {
+    workspaceId,
+    name: workspace.name,
+    deletedBy: userId,
+    reason,
+    correlationId: req.correlationId,
+  });
 
-    res.json({
-      invitations,
-    });
+  res.json({
+    message: 'Workspace deleted successfully',
+    workspaceId,
+    reason,
+  });
+}));
 
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('permission')) {
-      res.status(403).json({
-        error: 'Permission denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to get invitations',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+// Get workspace usage statistics
+router.get('/:workspaceId/usage', authMiddleware, asyncHandler(async (req, res) => {
+  const { workspaceId } = req.params;
+  const { userId } = req.user;
+
+  const workspace = await req.workspaceManager.getWorkspace(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
   }
-});
 
-// Resend invitation
-router.post('/:workspaceId/invitations/:invitationId/resend', async (req, res) => {
-  try {
-    const { workspaceId, invitationId } = req.params;
-
-    await req.workspaceManager.resendInvitation(
-      workspaceId,
-      invitationId,
-      req.user.userId
-    );
-
-    res.json({
-      message: 'Invitation resent successfully',
-    });
-
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace or invitation not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('permission')) {
-      res.status(403).json({
-        error: 'Permission denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to resend invitation',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+  // Check access
+  const member = workspace.members.find(m => m.userId === userId);
+  if (!member && req.user.role !== 'admin') {
+    throw new AuthorizationError('You do not have access to this workspace');
   }
-});
 
-// Cancel invitation
-router.delete('/:workspaceId/invitations/:invitationId', async (req, res) => {
-  try {
-    const { workspaceId, invitationId } = req.params;
+  // Get usage statistics
+  const usage = await req.workspaceManager.getWorkspaceUsage(workspaceId);
 
-    await req.workspaceManager.cancelInvitation(
-      workspaceId,
-      invitationId,
-      req.user.userId
-    );
+  res.json({
+    workspaceId,
+    usage: {
+      projects: {
+        current: usage.projectCount,
+        maximum: workspace.settings.maxProjects,
+        percentage: (usage.projectCount / workspace.settings.maxProjects) * 100,
+      },
+      members: {
+        current: workspace.members.length,
+        maximum: workspace.settings.maxMembers || 50, // Default limit
+        percentage: (workspace.members.length / (workspace.settings.maxMembers || 50)) * 100,
+      },
+      storage: usage.storage || {
+        current: 0,
+        maximum: 1024 * 1024 * 1024, // 1GB default
+        percentage: 0,
+      },
+    },
+    billingPeriod: {
+      start: usage.billingPeriodStart || workspace.createdAt,
+      end: usage.billingPeriodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
+    warnings: usage.warnings || [],
+  });
+}));
 
-    res.json({
-      message: 'Invitation cancelled successfully',
-    });
+// Get workspace activity log
+router.get('/:workspaceId/activity', authMiddleware, asyncHandler(async (req, res) => {
+  const { workspaceId } = req.params;
+  const { userId } = req.user;
+  const { page = 1, limit = 50, type } = req.query;
 
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace or invitation not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('permission')) {
-      res.status(403).json({
-        error: 'Permission denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to cancel invitation',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+  const workspace = await req.workspaceManager.getWorkspace(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
   }
-});
 
-// Accept workspace invitation
-router.post('/invitations/:token/accept', async (req, res) => {
-  try {
-    const { token } = req.params;
-
-    const result = await req.workspaceManager.acceptInvitation(
-      token,
-      req.user.userId
-    );
-
-    res.json({
-      message: 'Invitation accepted successfully',
-      workspace: result.workspace,
-    });
-
-  } catch (error) {
-    if (error.message.includes('Invalid') || error.message.includes('expired')) {
-      res.status(400).json({
-        error: 'Invalid or expired invitation',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('already')) {
-      res.status(409).json({
-        error: 'Already accepted',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to accept invitation',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
+  // Check access
+  const member = workspace.members.find(m => m.userId === userId);
+  if (!member && req.user.role !== 'admin') {
+    throw new AuthorizationError('You do not have access to this workspace');
   }
-});
 
-// Get workspace statistics
-router.get('/:workspaceId/statistics', async (req, res) => {
-  try {
-    const { workspaceId } = req.params;
-    const { period = '30d' } = req.query;
+  // Get activity log
+  const activity = await req.workspaceManager.getWorkspaceActivity(workspaceId, {
+    page: parseInt(page),
+    limit: parseInt(limit),
+    type,
+  });
 
-    const statistics = await req.workspaceManager.getWorkspaceStatistics(
-      workspaceId,
-      req.user.userId,
-      { period }
-    );
-
-    res.json({
-      statistics,
-    });
-
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('access')) {
-      res.status(403).json({
-        error: 'Access denied',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to get workspace statistics',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
-  }
-});
-
-// Leave workspace
-router.post('/:workspaceId/leave', async (req, res) => {
-  try {
-    const { workspaceId } = req.params;
-
-    await req.workspaceManager.removeMember(
-      workspaceId,
-      req.user.userId,
-      req.user.userId // User removing themselves
-    );
-
-    res.json({
-      message: 'Left workspace successfully',
-    });
-
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      res.status(404).json({
-        error: 'Workspace not found',
-        correlationId: req.correlationId,
-      });
-    } else if (error.message.includes('owner')) {
-      res.status(403).json({
-        error: 'Cannot leave as owner',
-        message: 'Transfer ownership before leaving the workspace',
-        correlationId: req.correlationId,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to leave workspace',
-        message: error.message,
-        correlationId: req.correlationId,
-      });
-    }
-  }
-});
+  res.json({
+    workspaceId,
+    activity: activity.activities,
+    pagination: activity.pagination,
+  });
+}));
 
 export default router;

@@ -2,319 +2,300 @@
 // SERVICES/USER-MANAGEMENT/src/services/user-manager.js
 // ==========================================
 import bcrypt from 'bcrypt';
-import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
 import { MongoClient, JWTUtils, Validators } from '@ux-flow/common';
-import config from '../config/index.js';
 
 class UserManager {
-  constructor(logger, mongoClient, redisClient, emailService) {
+  constructor(logger, mongoClient, redisClient) {
     this.logger = logger;
     this.mongoClient = mongoClient;
     this.redisClient = redisClient;
-    this.emailService = emailService;
+    
+    // User cache TTL (5 minutes)
+    this.userCacheTTL = 300;
   }
 
-  // User Registration
   async createUser(userData) {
     try {
-      const { email, password, firstName, lastName, workspaceName, invitationToken } = userData;
+      const { email, password, firstName, lastName } = userData;
 
-      // Validate input
-      if (!Validators.isValidEmail(email)) {
-        throw new Error('Invalid email format');
-      }
-
-      if (!password || password.length < 8) {
-        throw new Error('Password must be at least 8 characters long');
-      }
-
-      const db = this.mongoClient.getDb();
-      const usersCollection = db.collection('users');
-
-      // Check if user already exists
-      const existingUser = await usersCollection.findOne({ email: email.toLowerCase() });
+      // Validate email uniqueness
+      const existingUser = await this.getUserByEmail(email);
       if (existingUser) {
         throw new Error('User with this email already exists');
       }
 
       // Hash password
-      const hashedPassword = await bcrypt.hash(password, config.security.bcryptRounds);
+      const saltRounds = 12;
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-      // Generate user ID
-      const userId = uuidv4();
-
-      // Create user object
+      // Create user document
       const user = {
-        _id: userId,
-        email: email.toLowerCase(),
+        email: email.toLowerCase().trim(),
         password: hashedPassword,
-        firstName: firstName || null,
-        lastName: lastName || null,
-        displayName: this.generateDisplayName(firstName, lastName, email),
-        avatar: null,
-        role: config.user.defaultRole,
-        permissions: [...config.user.defaultPermissions],
+        firstName: firstName?.trim() || null,
+        lastName: lastName?.trim() || null,
+        workspaceId: null, // Will be set when user joins/creates workspace
+        role: 'user',
+        permissions: [
+          'read_projects',
+          'write_projects', 
+          'delete_own_projects',
+          'manage_own_profile'
+        ],
+        emailVerified: false,
         status: 'active',
-        emailVerified: !config.security.requireEmailVerification,
-        preferences: {
-          language: 'en',
-          timezone: 'UTC',
-          notifications: {
-            email: true,
-            browser: true,
-            mentions: true,
-            projectUpdates: true,
-          },
-        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastLoginAt: null,
         metadata: {
-          signupSource: invitationToken ? 'invitation' : 'direct',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          lastLoginAt: null,
-          loginCount: 0,
-          lastActiveAt: new Date(),
-        },
-        security: {
-          failedLoginAttempts: 0,
-          lockedUntil: null,
-          passwordChangedAt: new Date(),
-          twoFactorEnabled: false,
+          registrationIP: null, // Could be added from request
+          userAgent: null,
         },
       };
 
-      // Handle workspace assignment
-      let workspaceId = null;
-      if (invitationToken) {
-        // Join existing workspace via invitation
-        workspaceId = await this.processInvitation(invitationToken, userId);
-      } else if (workspaceName) {
-        // Create new workspace
-        workspaceId = await this.createWorkspaceForUser(userId, workspaceName);
-      }
+      const db = this.mongoClient.getDb();
+      const usersCollection = db.collection('users');
+      
+      const result = await usersCollection.insertOne(user);
+      const userId = result.insertedId.toString();
 
-      user.workspaceId = workspaceId;
-
-      // Insert user
-      await usersCollection.insertOne(user);
-
-      // Send email verification if required
-      if (config.security.requireEmailVerification) {
-        await this.sendEmailVerification(userId, email);
-      }
-
-      // Send welcome email
-      if (config.email.templates.welcomeEmail) {
-        await this.emailService.sendWelcomeEmail(email, {
-          firstName: firstName || 'User',
-          workspaceName: workspaceName || 'Your Workspace',
-        });
-      }
-
-      // Cache user data
-      await this.cacheUser(userId, user);
+      // Cache the user
+      await this.cacheUser(userId, { ...user, id: userId, _id: undefined });
 
       this.logger.info('User created successfully', {
         userId,
-        email: email.toLowerCase(),
-        workspaceId,
-        hasWorkspace: !!workspaceId,
-        signupSource: user.metadata.signupSource,
+        email: user.email,
       });
 
-      // Return user without sensitive data
-      return this.sanitizeUser(user);
+      return {
+        id: userId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        workspaceId: user.workspaceId,
+        role: user.role,
+        permissions: user.permissions,
+        emailVerified: user.emailVerified,
+        status: user.status,
+        createdAt: user.createdAt,
+      };
 
     } catch (error) {
-      this.logger.error('Failed to create user', error, { email });
+      this.logger.error('Failed to create user', error, { email: userData.email });
       throw error;
     }
   }
 
-  // User Authentication
-  async authenticateUser(email, password, options = {}) {
+  async getUserByEmail(email) {
     try {
-      const { rememberMe = false, ipAddress, userAgent } = options;
+      const normalizedEmail = email.toLowerCase().trim();
+      
+      // Try cache first
+      const cacheKey = `user:email:${normalizedEmail}`;
+      const cachedUser = await this.getCachedData(cacheKey);
+      if (cachedUser) {
+        return cachedUser;
+      }
 
       const db = this.mongoClient.getDb();
       const usersCollection = db.collection('users');
-
-      // Find user
+      
       const user = await usersCollection.findOne({ 
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         status: { $ne: 'deleted' }
       });
 
       if (!user) {
-        await this.recordFailedLogin(email, ipAddress);
-        throw new Error('Invalid email or password');
+        return null;
       }
 
-      // Check if account is locked
-      if (user.security.lockedUntil && user.security.lockedUntil > new Date()) {
-        throw new Error('Account is temporarily locked due to too many failed login attempts');
-      }
-
-      // Check if email is verified
-      if (config.security.requireEmailVerification && !user.emailVerified) {
-        throw new Error('Please verify your email address before logging in');
-      }
-
-      // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.password);
-      if (!isValidPassword) {
-        await this.recordFailedLogin(email, ipAddress, user._id);
-        throw new Error('Invalid email or password');
-      }
-
-      // Reset failed login attempts on successful login
-      await this.resetFailedLoginAttempts(user._id);
-
-      // Update login metadata
-      await usersCollection.updateOne(
-        { _id: user._id },
-        {
-          $set: {
-            'metadata.lastLoginAt': new Date(),
-            'metadata.lastActiveAt': new Date(),
-            'metadata.updatedAt': new Date(),
-          },
-          $inc: {
-            'metadata.loginCount': 1,
-          },
-        }
-      );
-
-      // Generate tokens
-      const tokenPayload = {
-        userId: user._id,
+      const formattedUser = {
+        id: user._id.toString(),
         email: user.email,
+        password: user.password, // Keep for authentication
+        firstName: user.firstName,
+        lastName: user.lastName,
         workspaceId: user.workspaceId,
         role: user.role,
         permissions: user.permissions,
+        emailVerified: user.emailVerified,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        lastLoginAt: user.lastLoginAt,
       };
 
-      const accessToken = JWTUtils.sign(tokenPayload, {
-        expiresIn: rememberMe ? '30d' : config.auth.jwtExpiresIn,
+      // Cache the user
+      await this.cacheUser(formattedUser.id, formattedUser);
+      await this.setCachedData(cacheKey, formattedUser, this.userCacheTTL);
+
+      return formattedUser;
+
+    } catch (error) {
+      this.logger.error('Failed to get user by email', error, { email });
+      throw error;
+    }
+  }
+
+  async getUser(userId) {
+    try {
+      if (!Validators.isValidObjectId(userId)) {
+        return null;
+      }
+
+      // Try cache first
+      const cachedUser = await this.getCachedUser(userId);
+      if (cachedUser) {
+        return cachedUser;
+      }
+
+      const db = this.mongoClient.getDb();
+      const usersCollection = db.collection('users');
+      
+      const user = await usersCollection.findOne({ 
+        _id: MongoClient.createObjectId(userId),
+        status: { $ne: 'deleted' }
       });
 
-      const refreshToken = await this.createRefreshToken(user._id, rememberMe);
+      if (!user) {
+        return null;
+      }
 
-      // Create session
-      await this.createSession(user._id, {
-        accessToken,
-        refreshToken,
-        ipAddress,
-        userAgent,
-        rememberMe,
-      });
-
-      // Update cache
-      await this.cacheUser(user._id, user);
-
-      this.logger.info('User authenticated successfully', {
-        userId: user._id,
+      const formattedUser = {
+        id: user._id.toString(),
         email: user.email,
+        password: user.password,
+        firstName: user.firstName,
+        lastName: user.lastName,
         workspaceId: user.workspaceId,
-        rememberMe,
-        ipAddress,
-      });
+        role: user.role,
+        permissions: user.permissions,
+        emailVerified: user.emailVerified,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        lastLoginAt: user.lastLoginAt,
+      };
+
+      // Cache the user
+      await this.cacheUser(userId, formattedUser);
+
+      return formattedUser;
+
+    } catch (error) {
+      this.logger.error('Failed to get user', error, { userId });
+      throw error;
+    }
+  }
+
+  async getUsers(options = {}) {
+    try {
+      const { page = 1, limit = 50, filters = {} } = options;
+      
+      const db = this.mongoClient.getDb();
+      const usersCollection = db.collection('users');
+
+      // Build query
+      const query = { status: { $ne: 'deleted' } };
+
+      if (filters.search) {
+        query.$or = [
+          { email: { $regex: filters.search, $options: 'i' } },
+          { firstName: { $regex: filters.search, $options: 'i' } },
+          { lastName: { $regex: filters.search, $options: 'i' } },
+        ];
+      }
+
+      if (filters.role) {
+        query.role = filters.role;
+      }
+
+      if (filters.workspaceId) {
+        query.workspaceId = filters.workspaceId;
+      }
+
+      if (filters.status) {
+        query.status = filters.status;
+      }
+
+      // Execute query with pagination
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const [users, totalCount] = await Promise.all([
+        usersCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit))
+          .project({ password: 0 }) // Exclude password
+          .toArray(),
+        usersCollection.countDocuments(query),
+      ]);
+
+      const totalPages = Math.ceil(totalCount / parseInt(limit));
 
       return {
-        user: this.sanitizeUser(user),
-        tokens: {
-          accessToken,
-          refreshToken,
-          expiresIn: rememberMe ? '30d' : config.auth.jwtExpiresIn,
+        users: users.map(user => ({
+          id: user._id.toString(),
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          workspaceId: user.workspaceId,
+          role: user.role,
+          permissions: user.permissions,
+          emailVerified: user.emailVerified,
+          status: user.status,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          lastLoginAt: user.lastLoginAt,
+        })),
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalCount,
+          totalPages,
+          hasNext: parseInt(page) < totalPages,
+          hasPrev: parseInt(page) > 1,
         },
       };
 
     } catch (error) {
-      this.logger.error('Authentication failed', error, { email, ipAddress });
+      this.logger.error('Failed to get users', error, { options });
       throw error;
     }
   }
 
-  // Get User Profile
-  async getUserProfile(userId) {
+  async updateUser(userId, updates) {
     try {
-      // Try cache first
-      const cachedUser = await this.getCachedUser(userId);
-      if (cachedUser) {
-        return this.sanitizeUser(cachedUser);
+      if (!Validators.isValidObjectId(userId)) {
+        throw new Error('Invalid user ID');
       }
 
-      // Get from database
       const db = this.mongoClient.getDb();
       const usersCollection = db.collection('users');
 
-      const user = await usersCollection.findOne(
-        { _id: userId, status: { $ne: 'deleted' } },
-        { projection: { password: 0 } }
-      );
+      // Prepare update data
+      const updateData = {
+        ...updates,
+        updatedAt: new Date(),
+      };
 
-      if (!user) {
-        throw new Error('User not found');
+      // Hash password if being updated
+      if (updates.password) {
+        const saltRounds = 12;
+        updateData.password = await bcrypt.hash(updates.password, saltRounds);
       }
 
-      // Update last active
-      await this.updateLastActive(userId);
-
-      // Cache user
-      await this.cacheUser(userId, user);
-
-      return this.sanitizeUser(user);
-
-    } catch (error) {
-      this.logger.error('Failed to get user profile', error, { userId });
-      throw error;
-    }
-  }
-
-  // Update User Profile
-  async updateUserProfile(userId, updates) {
-    try {
-      const allowedUpdates = [
-        'firstName',
-        'lastName',
-        'displayName',
-        'avatar',
-        'preferences',
-        'bio',
-      ];
-
-      const validUpdates = {};
-      for (const [key, value] of Object.entries(updates)) {
-        if (allowedUpdates.includes(key)) {
-          validUpdates[key] = value;
-        }
+      // Normalize email if being updated
+      if (updates.email) {
+        updateData.email = updates.email.toLowerCase().trim();
       }
-
-      if (Object.keys(validUpdates).length === 0) {
-        throw new Error('No valid updates provided');
-      }
-
-      // Validate updates
-      if (validUpdates.firstName && (validUpdates.firstName.length < 1 || validUpdates.firstName.length > 50)) {
-        throw new Error('First name must be between 1 and 50 characters');
-      }
-
-      if (validUpdates.lastName && (validUpdates.lastName.length < 1 || validUpdates.lastName.length > 50)) {
-        throw new Error('Last name must be between 1 and 50 characters');
-      }
-
-      if (validUpdates.bio && validUpdates.bio.length > 500) {
-        throw new Error('Bio must not exceed 500 characters');
-      }
-
-      validUpdates['metadata.updatedAt'] = new Date();
-
-      const db = this.mongoClient.getDb();
-      const usersCollection = db.collection('users');
 
       const result = await usersCollection.updateOne(
-        { _id: userId, status: { $ne: 'deleted' } },
-        { $set: validUpdates }
+        { 
+          _id: MongoClient.createObjectId(userId),
+          status: { $ne: 'deleted' }
+        },
+        { $set: updateData }
       );
 
       if (result.matchedCount === 0) {
@@ -324,201 +305,281 @@ class UserManager {
       // Invalidate cache
       await this.invalidateUserCache(userId);
 
-      this.logger.info('User profile updated', {
+      // Get updated user
+      const updatedUser = await this.getUser(userId);
+
+      this.logger.info('User updated', {
         userId,
-        updatedFields: Object.keys(validUpdates),
+        updatedFields: Object.keys(updates),
       });
 
-      // Return updated user
-      return await this.getUserProfile(userId);
+      return updatedUser;
 
     } catch (error) {
-      this.logger.error('Failed to update user profile', error, { userId });
+      this.logger.error('Failed to update user', error, { userId, updates });
       throw error;
     }
   }
 
-  // Change Password
-  async changePassword(userId, currentPassword, newPassword) {
+  async authenticateUser(email, password) {
     try {
-      if (!newPassword || newPassword.length < 8) {
-        throw new Error('New password must be at least 8 characters long');
+      const user = await this.getUserByEmail(email);
+      if (!user) {
+        return { 
+          success: false, 
+          reason: 'Invalid email or password' 
+        };
+      }
+
+      if (user.status !== 'active') {
+        return { 
+          success: false, 
+          reason: 'Account is not active' 
+        };
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return { 
+          success: false, 
+          reason: 'Invalid email or password' 
+        };
+      }
+
+      // Generate JWT token
+      const tokenPayload = {
+        userId: user.id,
+        email: user.email,
+        workspaceId: user.workspaceId,
+        role: user.role,
+        permissions: user.permissions,
+      };
+
+      const token = JWTUtils.sign(tokenPayload);
+
+      this.logger.info('User authenticated successfully', {
+        userId: user.id,
+        email: user.email,
+      });
+
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          workspaceId: user.workspaceId,
+          role: user.role,
+          permissions: user.permissions,
+          emailVerified: user.emailVerified,
+          lastLoginAt: user.lastLoginAt,
+        },
+        token,
+      };
+
+    } catch (error) {
+      this.logger.error('Authentication failed', error, { email });
+      throw error;
+    }
+  }
+
+  async deleteUser(userId, reason = 'user_request') {
+    try {
+      if (!Validators.isValidObjectId(userId)) {
+        throw new Error('Invalid user ID');
       }
 
       const db = this.mongoClient.getDb();
       const usersCollection = db.collection('users');
 
-      // Get current user with password
-      const user = await usersCollection.findOne({ _id: userId });
-      if (!user) {
-        throw new Error('User not found');
-      }
-
-      // Verify current password
-      const isValidPassword = await bcrypt.compare(currentPassword, user.password);
-      if (!isValidPassword) {
-        throw new Error('Current password is incorrect');
-      }
-
-      // Hash new password
-      const hashedNewPassword = await bcrypt.hash(newPassword, config.security.bcryptRounds);
-
-      // Update password
-      await usersCollection.updateOne(
-        { _id: userId },
+      // Soft delete
+      const result = await usersCollection.updateOne(
+        { 
+          _id: MongoClient.createObjectId(userId),
+          status: { $ne: 'deleted' }
+        },
         {
           $set: {
-            password: hashedNewPassword,
-            'security.passwordChangedAt': new Date(),
-            'metadata.updatedAt': new Date(),
+            status: 'deleted',
+            deletedAt: new Date(),
+            deletedReason: reason,
+            // Keep email but make it non-searchable
+            email: `deleted_${Date.now()}_${userId}@deleted.local`,
           },
         }
       );
 
-      // Invalidate all sessions except current
-      await this.invalidateUserSessions(userId, { excludeCurrent: true });
+      if (result.matchedCount === 0) {
+        throw new Error('User not found');
+      }
 
       // Invalidate cache
       await this.invalidateUserCache(userId);
 
-      this.logger.info('User password changed', { userId });
+      this.logger.info('User soft deleted', {
+        userId,
+        reason,
+      });
 
-      return { success: true };
+      return true;
 
     } catch (error) {
-      this.logger.error('Failed to change password', error, { userId });
+      this.logger.error('Failed to delete user', error, { userId, reason });
       throw error;
     }
   }
 
-  // Helper methods
-  generateDisplayName(firstName, lastName, email) {
-    if (firstName && lastName) {
-      return `${firstName} ${lastName}`;
-    }
-    if (firstName) {
-      return firstName;
-    }
-    return email.split('@')[0];
-  }
-
-  sanitizeUser(user) {
-    const sanitized = { ...user };
-    delete sanitized.password;
-    delete sanitized.security;
-    
-    return {
-      id: sanitized._id,
-      email: sanitized.email,
-      firstName: sanitized.firstName,
-      lastName: sanitized.lastName,
-      displayName: sanitized.displayName,
-      avatar: sanitized.avatar,
-      role: sanitized.role,
-      permissions: sanitized.permissions,
-      status: sanitized.status,
-      emailVerified: sanitized.emailVerified,
-      workspaceId: sanitized.workspaceId,
-      preferences: sanitized.preferences,
-      metadata: {
-        createdAt: sanitized.metadata.createdAt,
-        lastLoginAt: sanitized.metadata.lastLoginAt,
-        loginCount: sanitized.metadata.loginCount,
-      },
-    };
-  }
-
-  async recordFailedLogin(email, ipAddress, userId = null) {
-    if (!userId) return;
-
-    const db = this.mongoClient.getDb();
-    const usersCollection = db.collection('users');
-
-    const result = await usersCollection.updateOne(
-      { _id: userId },
-      {
-        $inc: { 'security.failedLoginAttempts': 1 },
-        $set: { 'metadata.updatedAt': new Date() },
+  async hardDeleteUser(userId) {
+    try {
+      if (!Validators.isValidObjectId(userId)) {
+        throw new Error('Invalid user ID');
       }
-    );
 
-    // Lock account if too many failed attempts
-    if (result.modifiedCount > 0) {
-      const user = await usersCollection.findOne({ _id: userId });
-      if (user.security.failedLoginAttempts >= config.auth.maxLoginAttempts) {
-        await usersCollection.updateOne(
-          { _id: userId },
-          {
-            $set: {
-              'security.lockedUntil': new Date(Date.now() + config.auth.lockoutDuration),
-            },
-          }
-        );
+      const db = this.mongoClient.getDb();
+      const usersCollection = db.collection('users');
+
+      // Hard delete - GDPR compliance
+      const result = await usersCollection.deleteOne({
+        _id: MongoClient.createObjectId(userId),
+      });
+
+      if (result.deletedCount === 0) {
+        throw new Error('User not found');
       }
+
+      // Invalidate cache
+      await this.invalidateUserCache(userId);
+
+      this.logger.info('User hard deleted (GDPR)', {
+        userId,
+      });
+
+      return true;
+
+    } catch (error) {
+      this.logger.error('Failed to hard delete user', error, { userId });
+      throw error;
     }
   }
 
-  async resetFailedLoginAttempts(userId) {
-    const db = this.mongoClient.getDb();
-    await db.collection('users').updateOne(
-      { _id: userId },
-      {
-        $unset: {
-          'security.failedLoginAttempts': '',
-          'security.lockedUntil': '',
+  async getUsersByWorkspace(workspaceId) {
+    try {
+      const db = this.mongoClient.getDb();
+      const usersCollection = db.collection('users');
+
+      const users = await usersCollection
+        .find({ 
+          workspaceId,
+          status: { $ne: 'deleted' }
+        })
+        .project({ password: 0 })
+        .toArray();
+
+      return users.map(user => ({
+        id: user._id.toString(),
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        permissions: user.permissions,
+        emailVerified: user.emailVerified,
+        status: user.status,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+      }));
+
+    } catch (error) {
+      this.logger.error('Failed to get users by workspace', error, { workspaceId });
+      throw error;
+    }
+  }
+
+  async updateUserWorkspace(userId, workspaceId) {
+    try {
+      return await this.updateUser(userId, { workspaceId });
+    } catch (error) {
+      this.logger.error('Failed to update user workspace', error, { userId, workspaceId });
+      throw error;
+    }
+  }
+
+  async verifyEmail(userId) {
+    try {
+      return await this.updateUser(userId, { 
+        emailVerified: true,
+        emailVerifiedAt: new Date()
+      });
+    } catch (error) {
+      this.logger.error('Failed to verify email', error, { userId });
+      throw error;
+    }
+  }
+
+  async changeUserStatus(userId, status) {
+    try {
+      const validStatuses = ['active', 'suspended', 'inactive'];
+      if (!validStatuses.includes(status)) {
+        throw new Error(`Invalid status: ${status}`);
+      }
+
+      return await this.updateUser(userId, { status });
+    } catch (error) {
+      this.logger.error('Failed to change user status', error, { userId, status });
+      throw error;
+    }
+  }
+
+  async getUserStats() {
+    try {
+      const db = this.mongoClient.getDb();
+      const usersCollection = db.collection('users');
+
+      const stats = await usersCollection.aggregate([
+        {
+          $match: { status: { $ne: 'deleted' } }
         },
-      }
-    );
+        {
+          $group: {
+            _id: null,
+            totalUsers: { $sum: 1 },
+            activeUsers: {
+              $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] }
+            },
+            verifiedUsers: {
+              $sum: { $cond: [{ $eq: ['$emailVerified', true] }, 1, 0] }
+            },
+            adminUsers: {
+              $sum: { $cond: [{ $eq: ['$role', 'admin'] }, 1, 0] }
+            }
+          }
+        }
+      ]).toArray();
+
+      const result = stats[0] || {
+        totalUsers: 0,
+        activeUsers: 0,
+        verifiedUsers: 0,
+        adminUsers: 0,
+      };
+
+      return {
+        ...result,
+        _id: undefined,
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to get user stats', error);
+      throw error;
+    }
   }
 
-  async createRefreshToken(userId, longLived = false) {
-    const token = crypto.randomBytes(40).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (longLived ? 30 : 7));
-
-    const db = this.mongoClient.getDb();
-    await db.collection('refresh_tokens').insertOne({
-      token,
-      userId,
-      expiresAt,
-      createdAt: new Date(),
-    });
-
-    return token;
-  }
-
-  async createSession(userId, sessionData) {
-    const sessionId = uuidv4();
-    const session = {
-      _id: sessionId,
-      userId,
-      ...sessionData,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + config.security.sessionCookieMaxAge),
-    };
-
-    const db = this.mongoClient.getDb();
-    await db.collection('user_sessions').insertOne(session);
-
-    return sessionId;
-  }
-
-  async updateLastActive(userId) {
-    const db = this.mongoClient.getDb();
-    await db.collection('users').updateOne(
-      { _id: userId },
-      { $set: { 'metadata.lastActiveAt': new Date() } }
-    );
-  }
-
-  // Cache management
+  // Cache management methods
   async cacheUser(userId, user) {
     try {
-      await this.redisClient.set(
-        `user:${userId}`,
-        user,
-        config.performance.cacheExpiryMinutes * 60
-      );
+      const cacheKey = `user:${userId}`;
+      await this.setCachedData(cacheKey, user, this.userCacheTTL);
     } catch (error) {
       this.logger.warn('Failed to cache user', error, { userId });
     }
@@ -526,7 +587,8 @@ class UserManager {
 
   async getCachedUser(userId) {
     try {
-      return await this.redisClient.get(`user:${userId}`);
+      const cacheKey = `user:${userId}`;
+      return await this.getCachedData(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to get cached user', error, { userId });
       return null;
@@ -535,51 +597,58 @@ class UserManager {
 
   async invalidateUserCache(userId) {
     try {
-      await this.redisClient.del(`user:${userId}`);
+      const user = await this.getCachedUser(userId);
+      const cacheKeys = [`user:${userId}`];
+      
+      if (user && user.email) {
+        cacheKeys.push(`user:email:${user.email}`);
+      }
+
+      await Promise.all(cacheKeys.map(key => this.redisClient.del(key)));
     } catch (error) {
       this.logger.warn('Failed to invalidate user cache', error, { userId });
     }
   }
 
-  async invalidateUserSessions(userId, options = {}) {
-    const db = this.mongoClient.getDb();
-    
-    let query = { userId };
-    if (options.excludeCurrent && options.currentSessionId) {
-      query._id = { $ne: options.currentSessionId };
+  async setCachedData(key, data, ttl) {
+    try {
+      await this.redisClient.set(key, data, ttl);
+    } catch (error) {
+      this.logger.warn('Failed to set cached data', error, { key });
     }
-
-    await db.collection('user_sessions').deleteMany(query);
   }
 
-  // Email verification and password reset will be implemented in separate methods
-  async sendEmailVerification(userId, email) {
-    // Implementation for email verification
-    this.logger.info('Email verification sent', { userId, email });
-  }
-
-  async createWorkspaceForUser(userId, workspaceName) {
-    // This will be implemented when we create WorkspaceManager
-    this.logger.info('Creating workspace for user', { userId, workspaceName });
-    return null; // Temporary
-  }
-
-  async processInvitation(invitationToken, userId) {
-    // This will be implemented when we create WorkspaceManager
-    this.logger.info('Processing invitation', { invitationToken, userId });
-    return null; // Temporary
+  async getCachedData(key) {
+    try {
+      return await this.redisClient.get(key);
+    } catch (error) {
+      this.logger.warn('Failed to get cached data', error, { key });
+      return null;
+    }
   }
 
   // Health check
-  healthCheck() {
-    return {
-      status: 'ok',
-      features: {
-        registration: config.security.allowSignup,
-        emailVerification: config.security.requireEmailVerification,
-        twoFactor: config.features.twoFactorAuth,
-      },
-    };
+  async healthCheck() {
+    try {
+      const db = this.mongoClient.getDb();
+      const usersCollection = db.collection('users');
+      
+      // Simple query to test database connectivity
+      await usersCollection.findOne({}, { projection: { _id: 1 } });
+      
+      return {
+        status: 'ok',
+        component: 'user-manager',
+      };
+
+    } catch (error) {
+      this.logger.error('User manager health check failed', error);
+      return {
+        status: 'error',
+        component: 'user-manager',
+        error: error.message,
+      };
+    }
   }
 }
 
