@@ -7,15 +7,13 @@ import helmet from 'helmet';
 
 import { Logger, EventEmitter, MongoClient, RedisClient, HealthCheck } from '@ux-flow/common';
 import { KnowledgeManager } from './services/knowledge-manager.js';
-import { MemoryManager } from './services/memory-manager.js';
-import { VectorStore } from './services/vector-store.js';
 import { EventHandlers } from './events/event-handlers.js';
 import config from './config/index.js';
 
 // Route imports
 import healthRoutes from './routes/health.js';
 import knowledgeRoutes from './routes/knowledge.js';
-import memoryRoutes from './routes/memory.js';
+import documentsRoutes from './routes/documents.js';
 
 class KnowledgeService {
   constructor() {
@@ -27,9 +25,7 @@ class KnowledgeService {
     this.healthCheck = new HealthCheck('knowledge-service', this.logger);
 
     // Service components
-    this.vectorStore = null;
     this.knowledgeManager = null;
-    this.memoryManager = null;
     this.eventHandlers = null;
   }
 
@@ -39,34 +35,20 @@ class KnowledgeService {
       await this.mongoClient.connect();
       await this.redisClient.connect();
 
-      // Initialize vector store (ChromaDB)
-      this.vectorStore = new VectorStore(this.logger, config.chroma);
-      await this.vectorStore.initialize();
-
-      // Initialize service components
-      this.memoryManager = new MemoryManager(
+      // Initialize knowledge manager
+      this.knowledgeManager = new KnowledgeManager(
         this.logger,
         this.mongoClient,
         this.redisClient
       );
-
-      this.knowledgeManager = new KnowledgeManager(
-        this.logger,
-        this.vectorStore,
-        this.mongoClient,
-        this.memoryManager
-      );
+      await this.knowledgeManager.initialize();
 
       // Setup event handlers
       this.eventHandlers = new EventHandlers(
         this.logger,
         this.eventEmitter,
-        this.knowledgeManager,
-        this.memoryManager
+        this.knowledgeManager
       );
-
-      // Initialize UX knowledge base
-      await this.knowledgeManager.initializeUXKnowledgeBase();
 
       // Setup health checks
       this.setupHealthChecks();
@@ -90,8 +72,7 @@ class KnowledgeService {
   setupHealthChecks() {
     this.healthCheck.addDependency('mongodb', () => this.mongoClient.healthCheck());
     this.healthCheck.addDependency('redis', () => this.redisClient.healthCheck());
-    this.healthCheck.addDependency('chromadb', () => this.vectorStore.healthCheck());
-    this.healthCheck.addDependency('memory-manager', () => this.memoryManager.healthCheck());
+    this.healthCheck.addDependency('chromadb', () => this.knowledgeManager.healthCheck());
   }
 
   setupMiddleware() {
@@ -116,8 +97,6 @@ class KnowledgeService {
     // Attach services to request
     this.app.use((req, res, next) => {
       req.knowledgeManager = this.knowledgeManager;
-      req.memoryManager = this.memoryManager;
-      req.vectorStore = this.vectorStore;
       next();
     });
   }
@@ -128,7 +107,7 @@ class KnowledgeService {
 
     // API routes
     this.app.use('/api/v1/knowledge', knowledgeRoutes);
-    this.app.use('/api/v1/memory', memoryRoutes);
+    this.app.use('/api/v1/documents', documentsRoutes);
 
     // Root endpoint
     this.app.get('/', (req, res) => {
@@ -139,15 +118,8 @@ class KnowledgeService {
         endpoints: {
           health: '/health',
           knowledge: '/api/v1/knowledge',
-          memory: '/api/v1/memory',
+          documents: '/api/v1/documents',
         },
-        features: [
-          'UX Knowledge Base',
-          'Vector Search (ChromaDB)',
-          'Hierarchical Memory Management',
-          'Agent Decision Tracking',
-          'Context Summarization',
-        ],
         timestamp: new Date().toISOString(),
       });
     });
@@ -186,10 +158,9 @@ class KnowledgeService {
       this.logger.info(`Knowledge Service listening on port ${port}`, {
         port,
         environment: process.env.NODE_ENV,
-        features: {
-          vectorStore: this.vectorStore.isInitialized(),
-          memoryLevels: this.memoryManager.getMemoryLevels(),
-          knowledgeCollections: this.knowledgeManager.getCollectionCount(),
+        endpoints: {
+          http: `http://localhost:${port}`,
+          health: `http://localhost:${port}/health`,
         },
       });
     });
@@ -203,11 +174,6 @@ class KnowledgeService {
     this.logger.info('Shutting down Knowledge Service...');
     
     try {
-      // Close vector store
-      if (this.vectorStore) {
-        await this.vectorStore.shutdown();
-      }
-
       // Close database connections
       await this.mongoClient.disconnect();
       await this.redisClient.disconnect();
