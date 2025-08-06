@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  user-management:
+    build: .
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - USER_MANAGEMENT_PORT=3004
+      - MONGODB_URI=mongodb://mongo:27017/ux-flow-engine
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=development-jwt-secret
+      - LOG_LEVEL=debug
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - ux-flow-network
+
+  mongo:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: ux-flow-engine
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ux-flow-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ux-flow-network
+
+volumes:
+  mongo_data:
+  redis_data:
+
+networks:
+  ux-flow-network:
+    driver: bridge
