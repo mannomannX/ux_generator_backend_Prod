@@ -1,7 +1,3 @@
-// ==========================================
-// SERVICES/COGNITIVE-CORE/src/security/backup-manager.js
-// ==========================================
-
 import crypto from 'crypto';
 import { promisify } from 'util';
 import zlib from 'zlib';
@@ -9,6 +5,8 @@ import zlib from 'zlib';
 /**
  * BackupManager handles conversation data backup, encryption, and recovery
  * for GDPR compliance and disaster recovery scenarios
+ * 
+ * This is a shared utility that can be used by any service requiring backup capabilities
  */
 class BackupManager {
   constructor(logger, mongoClient, redisClient, config = {}) {
@@ -46,41 +44,44 @@ class BackupManager {
   }
 
   /**
-   * Create encrypted backup of conversation data
+   * Create encrypted backup of data
    */
-  async createConversationBackup(conversationId, options = {}) {
+  async createBackup(collectionName, documentId, options = {}) {
     const startTime = Date.now();
     
     try {
-      // Fetch conversation data from MongoDB
-      const conversationData = await this.mongoClient.findDocument('conversations', {
-        conversationId
+      // Fetch data from MongoDB
+      const data = await this.mongoClient.findDocument(collectionName, {
+        _id: documentId
       });
 
-      if (!conversationData) {
-        throw new Error(`Conversation ${conversationId} not found`);
+      if (!data) {
+        throw new Error(`Document ${documentId} not found in ${collectionName}`);
       }
 
-      // Fetch related performance data
-      const performanceData = await this.mongoClient.findDocuments('agent_performance', {
-        'metadata.conversationId': conversationId
-      });
+      // Fetch related data if specified
+      const relatedData = {};
+      if (options.includeRelated) {
+        for (const [key, query] of Object.entries(options.includeRelated)) {
+          relatedData[key] = await this.mongoClient.findDocuments(query.collection, query.filter);
+        }
+      }
 
       // Create backup payload
       const backupPayload = {
         timestamp: new Date().toISOString(),
-        version: '1.0.0',
-        conversationId,
+        version: '2.0.0',
+        documentId,
+        collectionName,
         data: {
-          conversation: conversationData,
-          performance: performanceData,
+          primary: data,
+          related: relatedData,
           metadata: {
-            totalMessages: conversationData.conversationHistory?.length || 0,
-            agentActions: conversationData.agentHistory?.length || 0,
-            state: conversationData.state
+            documentCount: 1 + Object.values(relatedData).reduce((sum, arr) => sum + arr.length, 0),
+            collections: [collectionName, ...Object.keys(relatedData)]
           }
         },
-        checksum: null // Will be calculated after serialization
+        checksum: null
       };
 
       // Serialize data
@@ -113,15 +114,16 @@ class BackupManager {
       }
 
       // Store backup in Redis with expiration
-      const backupKey = `backup:conversation:${conversationId}:${Date.now()}`;
-      const ttl = this.config.retentionDays * 24 * 60 * 60; // Convert days to seconds
+      const backupKey = `backup:${collectionName}:${documentId}:${Date.now()}`;
+      const ttl = this.config.retentionDays * 24 * 60 * 60;
       
       await this.redisClient.set(backupKey, processedData.toString('base64'), ttl);
 
       // Store backup metadata
       const metadata = {
         backupKey,
-        conversationId,
+        documentId,
+        collectionName,
         timestamp: new Date().toISOString(),
         originalSize: serializedData.length,
         compressedSize: processedData.length,
@@ -132,13 +134,14 @@ class BackupManager {
         ttl
       };
 
-      this.backupMetadata.set(conversationId, metadata);
-      await this.redisClient.set(`backup:meta:${conversationId}`, metadata, ttl);
+      this.backupMetadata.set(`${collectionName}:${documentId}`, metadata);
+      await this.redisClient.set(`backup:meta:${collectionName}:${documentId}`, metadata, ttl);
 
       const processingTime = Date.now() - startTime;
       
-      this.logger.info('Conversation backup created', {
-        conversationId,
+      this.logger.info('Backup created', {
+        collectionName,
+        documentId,
         backupKey,
         originalSize: metadata.originalSize,
         compressedSize: metadata.compressedSize,
@@ -157,8 +160,9 @@ class BackupManager {
     } catch (error) {
       const processingTime = Date.now() - startTime;
       
-      this.logger.error('Failed to create conversation backup', error, {
-        conversationId,
+      this.logger.error('Failed to create backup', error, {
+        collectionName,
+        documentId,
         processingTime,
         error: error.message
       });
@@ -168,9 +172,9 @@ class BackupManager {
   }
 
   /**
-   * Restore conversation from encrypted backup
+   * Restore data from encrypted backup
    */
-  async restoreConversationBackup(backupKey, options = {}) {
+  async restoreBackup(backupKey, options = {}) {
     const startTime = Date.now();
     
     try {
@@ -211,29 +215,29 @@ class BackupManager {
       }
 
       // Validate backup structure
-      if (!backupPayload.data || !backupPayload.data.conversation) {
-        throw new Error('Invalid backup structure - missing conversation data');
+      if (!backupPayload.data || !backupPayload.data.primary) {
+        throw new Error('Invalid backup structure - missing primary data');
       }
 
       const processingTime = Date.now() - startTime;
       
-      this.logger.info('Conversation backup restored', {
+      this.logger.info('Backup restored', {
         backupKey,
-        conversationId: backupPayload.conversationId,
+        documentId: backupPayload.documentId,
+        collectionName: backupPayload.collectionName,
         backupTimestamp: backupPayload.timestamp,
-        processingTime,
-        messagesRestored: backupPayload.data.metadata?.totalMessages || 0
+        processingTime
       });
 
       return {
         success: true,
-        conversationId: backupPayload.conversationId,
+        documentId: backupPayload.documentId,
+        collectionName: backupPayload.collectionName,
         data: backupPayload.data,
         metadata: {
           backupTimestamp: backupPayload.timestamp,
           version: backupPayload.version,
-          totalMessages: backupPayload.data.metadata?.totalMessages || 0,
-          agentActions: backupPayload.data.metadata?.agentActions || 0
+          documentCount: backupPayload.data.metadata?.documentCount || 1
         },
         processingTime
       };
@@ -241,7 +245,7 @@ class BackupManager {
     } catch (error) {
       const processingTime = Date.now() - startTime;
       
-      this.logger.error('Failed to restore conversation backup', error, {
+      this.logger.error('Failed to restore backup', error, {
         backupKey,
         processingTime,
         error: error.message
@@ -252,35 +256,39 @@ class BackupManager {
   }
 
   /**
-   * Create bulk backup of multiple conversations
+   * Create bulk backup of multiple documents
    */
-  async createBulkBackup(conversationIds, options = {}) {
+  async createBulkBackup(backupRequests, options = {}) {
     const startTime = Date.now();
     const results = [];
     let successCount = 0;
     let failureCount = 0;
 
     this.logger.info('Starting bulk backup', {
-      conversationCount: conversationIds.length,
+      requestCount: backupRequests.length,
       options
     });
 
-    for (const conversationId of conversationIds) {
+    for (const request of backupRequests) {
       try {
-        const result = await this.createConversationBackup(conversationId, options);
-        results.push({ conversationId, success: true, ...result });
+        const result = await this.createBackup(
+          request.collectionName,
+          request.documentId,
+          request.options || options
+        );
+        results.push({ ...request, success: true, ...result });
         successCount++;
       } catch (error) {
         results.push({
-          conversationId,
+          ...request,
           success: false,
           error: error.message
         });
         failureCount++;
         
-        // Continue with other backups even if one fails
         this.logger.warn('Individual backup failed in bulk operation', {
-          conversationId,
+          collectionName: request.collectionName,
+          documentId: request.documentId,
           error: error.message
         });
       }
@@ -289,16 +297,16 @@ class BackupManager {
     const processingTime = Date.now() - startTime;
     
     this.logger.info('Bulk backup completed', {
-      total: conversationIds.length,
+      total: backupRequests.length,
       successes: successCount,
       failures: failureCount,
       processingTime,
-      avgTimePerBackup: Math.round(processingTime / conversationIds.length)
+      avgTimePerBackup: Math.round(processingTime / backupRequests.length)
     });
 
     return {
       success: successCount > 0,
-      total: conversationIds.length,
+      total: backupRequests.length,
       successes: successCount,
       failures: failureCount,
       results,
@@ -307,20 +315,20 @@ class BackupManager {
   }
 
   /**
-   * Export conversation data for GDPR compliance
+   * Export data for GDPR compliance
    */
-  async exportConversationData(conversationId, format = 'json') {
+  async exportDataForCompliance(collectionName, documentId, format = 'json') {
     try {
-      const backup = await this.createConversationBackup(conversationId, {
-        includePerformance: true,
-        includeMetadata: true
+      const backup = await this.createBackup(collectionName, documentId, {
+        includeRelated: {}
       });
 
-      const restored = await this.restoreConversationBackup(backup.backupKey);
+      const restored = await this.restoreBackup(backup.backupKey);
       
       // Format data for export
       const exportData = {
-        conversationId,
+        documentId,
+        collectionName,
         exportedAt: new Date().toISOString(),
         format,
         data: restored.data
@@ -333,8 +341,9 @@ class BackupManager {
       return JSON.stringify(exportData, null, 2);
 
     } catch (error) {
-      this.logger.error('Failed to export conversation data', error, {
-        conversationId,
+      this.logger.error('Failed to export data for compliance', error, {
+        collectionName,
+        documentId,
         format
       });
       throw error;
@@ -350,9 +359,11 @@ class BackupManager {
     
     try {
       // Get all backup keys
-      const backupKeys = await this.redisClient.keys('backup:conversation:*');
+      const backupKeys = await this.redisClient.keys('backup:*');
       
       for (const key of backupKeys) {
+        if (key.startsWith('backup:meta:')) continue; // Skip metadata keys
+        
         const ttl = await this.redisClient.ttl(key);
         
         // Remove keys that are close to expiration (within 1 hour)
@@ -383,13 +394,14 @@ class BackupManager {
    */
   async getBackupStatistics() {
     try {
-      const backupKeys = await this.redisClient.keys('backup:conversation:*');
-      const metaKeys = await this.redisClient.keys('backup:meta:*');
+      const backupKeys = await this.redisClient.keys('backup:*');
+      const actualBackupKeys = backupKeys.filter(k => !k.startsWith('backup:meta:'));
+      const metaKeys = backupKeys.filter(k => k.startsWith('backup:meta:'));
       
       let totalSize = 0;
       let totalOriginalSize = 0;
       
-      for (const key of backupKeys) {
+      for (const key of actualBackupKeys) {
         const data = await this.redisClient.get(key);
         if (data) {
           totalSize += Buffer.byteLength(data, 'base64');
@@ -404,11 +416,11 @@ class BackupManager {
       }
 
       return {
-        totalBackups: backupKeys.length,
+        totalBackups: actualBackupKeys.length,
         totalSize,
         totalOriginalSize,
         compressionRatio: totalOriginalSize > 0 ? (totalSize / totalOriginalSize) : 1,
-        averageBackupSize: backupKeys.length > 0 ? Math.round(totalSize / backupKeys.length) : 0,
+        averageBackupSize: actualBackupKeys.length > 0 ? Math.round(totalSize / actualBackupKeys.length) : 0,
         spaceSaved: totalOriginalSize - totalSize,
         retentionDays: this.config.retentionDays
       };
@@ -441,47 +453,40 @@ class BackupManager {
   }
 
   /**
-   * Perform automatic backup of active conversations
+   * Perform automatic backup of active data
    */
   async performAutomaticBackup() {
     try {
-      // Find active conversations from last 24 hours
-      const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
-      const activeConversations = await this.mongoClient.findDocuments('conversations', {
-        lastActivity: { $gte: cutoffDate },
-        state: { $ne: 'deleted' }
-      });
-
-      if (activeConversations.length === 0) {
-        this.logger.info('No active conversations to backup');
-        return;
-      }
-
-      const conversationIds = activeConversations.map(conv => conv.conversationId);
-      const result = await this.createBulkBackup(conversationIds);
-
-      this.logger.info('Automatic backup completed', result);
-
+      // This method should be overridden by services using the BackupManager
+      // to define their specific backup strategy
+      this.logger.info('Automatic backup triggered - no default implementation');
     } catch (error) {
       this.logger.error('Automatic backup process failed', error);
     }
   }
 
   /**
-   * Encrypt data using AES-256-GCM
+   * Encrypt data using AES-256-GCM (FIXED: using createCipheriv instead of deprecated createCipher)
    */
   encryptData(data) {
     if (!this.config.encryptionKey) {
       throw new Error('Encryption key not configured');
     }
 
-    const key = crypto.scryptSync(this.config.encryptionKey, 'salt', 32);
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipher('aes-256-gcm', key);
-    cipher.setAutoPadding(true);
+    // Derive a proper key from the encryption key
+    const salt = 'ux-flow-backup-salt'; // Fixed salt for key derivation
+    const key = crypto.scryptSync(this.config.encryptionKey, salt, 32);
     
+    // Generate random IV for each encryption
+    const iv = crypto.randomBytes(16);
+    
+    // Create cipher with key and IV
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    
+    // Encrypt the data
     const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+    
+    // Get the authentication tag
     const authTag = cipher.getAuthTag();
     
     // Combine IV, auth tag, and encrypted data
@@ -489,23 +494,29 @@ class BackupManager {
   }
 
   /**
-   * Decrypt data using AES-256-GCM
+   * Decrypt data using AES-256-GCM (FIXED: using createDecipheriv instead of deprecated createDecipher)
    */
   decryptData(encryptedData) {
     if (!this.config.encryptionKey) {
       throw new Error('Encryption key not configured');
     }
 
-    const key = crypto.scryptSync(this.config.encryptionKey, 'salt', 32);
+    // Derive the same key used for encryption
+    const salt = 'ux-flow-backup-salt';
+    const key = crypto.scryptSync(this.config.encryptionKey, salt, 32);
     
     // Extract IV, auth tag, and encrypted data
     const iv = encryptedData.slice(0, 16);
     const authTag = encryptedData.slice(16, 32);
     const encrypted = encryptedData.slice(32);
     
-    const decipher = crypto.createDecipher('aes-256-gcm', key);
+    // Create decipher with key and IV
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    
+    // Set the authentication tag
     decipher.setAuthTag(authTag);
     
+    // Decrypt the data
     return Buffer.concat([decipher.update(encrypted), decipher.final()]);
   }
 
@@ -513,28 +524,33 @@ class BackupManager {
    * Convert export data to CSV format
    */
   convertToCSV(exportData) {
-    const conversation = exportData.data.conversation;
-    const history = conversation.conversationHistory || [];
+    const data = exportData.data.primary;
     
-    const csvHeaders = [
-      'timestamp',
-      'role',
-      'content',
-      'aiProvider',
-      'processingTime'
-    ];
+    // Flatten the object for CSV conversion
+    const flattenObject = (obj, prefix = '') => {
+      const flattened = {};
+      for (const [key, value] of Object.entries(obj)) {
+        const newKey = prefix ? `${prefix}.${key}` : key;
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          Object.assign(flattened, flattenObject(value, newKey));
+        } else if (Array.isArray(value)) {
+          flattened[newKey] = JSON.stringify(value);
+        } else {
+          flattened[newKey] = value;
+        }
+      }
+      return flattened;
+    };
 
-    const csvRows = history.map(message => [
-      message.timestamp,
-      message.role,
-      `"${message.content.replace(/"/g, '""')}"`, // Escape quotes
-      message.metadata?.aiProvider || '',
-      message.metadata?.processingTime || ''
-    ]);
+    const flattened = flattenObject(data);
+    const headers = Object.keys(flattened);
+    const values = Object.values(flattened).map(v => 
+      typeof v === 'string' && v.includes(',') ? `"${v.replace(/"/g, '""')}"` : v
+    );
 
     return [
-      csvHeaders.join(','),
-      ...csvRows.map(row => row.join(','))
+      headers.join(','),
+      values.join(',')
     ].join('\n');
   }
 
