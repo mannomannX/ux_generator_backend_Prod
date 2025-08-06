@@ -1,0 +1,107 @@
+# ==========================================
+# COGNITIVE CORE SERVICE - Development Environment
+# ==========================================
+
+version: '3.8'
+
+services:
+  # Cognitive Core Service
+  cognitive-core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: cognitive-core-dev
+    ports:
+      - "3001:3001"
+      - "9090:9090" # Metrics port
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://mongodb:27017/ux-flow-engine
+      - REDIS_URL=redis://redis:6379
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LOG_LEVEL=debug
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - ux-flow-network
+    restart: unless-stopped
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: cognitive-core-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=ux-flow-engine
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - ux-flow-network
+    restart: unless-stopped
+
+  # Redis Cache & Event Bus
+  redis:
+    image: redis:7.2-alpine
+    container_name: cognitive-core-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redispassword
+    volumes:
+      - redis_data:/data
+    networks:
+      - ux-flow-network
+    restart: unless-stopped
+
+  # Redis Commander (GUI for development)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:redispassword
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - ux-flow-network
+    profiles:
+      - debug
+
+  # MongoDB Express (GUI for development)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=password
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=pass
+    ports:
+      - "8082:8081"
+    depends_on:
+      - mongodb
+    networks:
+      - ux-flow-network
+    profiles:
+      - debug
+
+volumes:
+  mongodb_data:
+    name: cognitive-core-mongodb-data
+  redis_data:
+    name: cognitive-core-redis-data
+
+networks:
+  ux-flow-network:
+    name: ux-flow-network
+    driver: bridge

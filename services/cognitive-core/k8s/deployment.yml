@@ -1,0 +1,269 @@
+# ==========================================
+# COGNITIVE CORE SERVICE - Kubernetes Deployment
+# ==========================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ux-flow-engine
+  labels:
+    name: ux-flow-engine
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cognitive-core-config
+  namespace: ux-flow-engine
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  COGNITIVE_CORE_PORT: "3001"
+  AGENT_DEFAULT_QUALITY_MODE: "standard"
+  AGENT_RETRY_ATTEMPTS: "2"
+  AGENT_TIMEOUT_MS: "30000"
+  ENABLE_VISION_AGENT: "true"
+  ENABLE_CONVERSATION_PERSISTENCE: "true"
+  ENABLE_PERFORMANCE_ANALYTICS: "false"
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cognitive-core-secrets
+  namespace: ux-flow-engine
+type: Opaque
+stringData:
+  GOOGLE_API_KEY: "your-google-gemini-api-key-here"
+  OPENAI_API_KEY: "your-openai-api-key-here"
+  CLAUDE_API_KEY: "your-claude-api-key-here"
+  MONGODB_URI: "mongodb://mongodb-service:27017/ux-flow-engine"
+  REDIS_URL: "redis://redis-service:6379"
+  JWT_SECRET: "your-super-secret-jwt-key"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cognitive-core
+  namespace: ux-flow-engine
+  labels:
+    app: cognitive-core
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: cognitive-core
+  template:
+    metadata:
+      labels:
+        app: cognitive-core
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cognitive-core-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+      - name: cognitive-core
+        image: cognitive-core:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 3001
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        envFrom:
+        - configMapRef:
+            name: cognitive-core-config
+        - secretRef:
+            name: cognitive-core-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: config-volume
+        configMap:
+          name: cognitive-core-config
+      - name: logs
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cognitive-core
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cognitive-core-service
+  namespace: ux-flow-engine
+  labels:
+    app: cognitive-core
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3001
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  selector:
+    app: cognitive-core
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cognitive-core-sa
+  namespace: ux-flow-engine
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: ux-flow-engine
+  name: cognitive-core-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cognitive-core-rolebinding
+  namespace: ux-flow-engine
+subjects:
+- kind: ServiceAccount
+  name: cognitive-core-sa
+  namespace: ux-flow-engine
+roleRef:
+  kind: Role
+  name: cognitive-core-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cognitive-core-pdb
+  namespace: ux-flow-engine
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: cognitive-core
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cognitive-core-hpa
+  namespace: ux-flow-engine
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cognitive-core
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
