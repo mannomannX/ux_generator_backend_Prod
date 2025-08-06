@@ -55,3 +55,27 @@ export {
   consumeCreditsAfterSuccess,
   CREDIT_COSTS 
 } from './middleware/credit-check.js';
+
+// New Security Modules
+export {
+  InputValidator,
+  CSRFProtection,
+  SecurityHeaders,
+  SecurityMiddleware,
+  SecretsManager,
+  SecurityMonitor
+} from './security/index.js';
+
+// GDPR Compliance
+export {
+  DataProtection,
+  ConsentManager,
+  AuditLogger,
+  RightsHandler
+} from './gdpr/index.js';
+
+// Optimization
+export {
+  CostOptimizer,
+  PerformanceOptimizer
+} from './optimization/index.js';

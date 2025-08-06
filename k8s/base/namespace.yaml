@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ux-flow-engine
+  labels:
+    app: ux-flow-engine
+    environment: production

@@ -1,0 +1,274 @@
+# Default values for ux-flow-engine
+global:
+  domain: ux-flow-engine.com
+  environment: production
+  imageRegistry: ""
+  imagePullSecrets: []
+  
+# Service configurations
+services:
+  apiGateway:
+    enabled: true
+    replicaCount: 3
+    image:
+      repository: ux-flow-engine/api-gateway
+      tag: latest
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+    
+  cognitiveCore:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: ux-flow-engine/cognitive-core
+      tag: latest
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      
+  knowledgeService:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: ux-flow-engine/knowledge-service
+      tag: latest
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+        
+  flowService:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: ux-flow-engine/flow-service
+      tag: latest
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+        
+  userManagement:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: ux-flow-engine/user-management
+      tag: latest
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+        
+  billingService:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: ux-flow-engine/billing-service
+      tag: latest
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+  hosts:
+    - host: api.ux-flow-engine.com
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: ws.ux-flow-engine.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ux-flow-engine-tls
+      hosts:
+        - api.ux-flow-engine.com
+        - ws.ux-flow-engine.com
+
+# MongoDB configuration
+mongodb:
+  enabled: true
+  architecture: replicaset
+  replicaCount: 3
+  auth:
+    enabled: true
+    rootUser: admin
+    rootPassword: "changeme"
+    database: ux-flow-engine
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: fast-ssd
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# Redis configuration
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: "changeme"
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: fast-ssd
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "250m"
+      limits:
+        memory: "2Gi"
+        cpu: "500m"
+
+# ChromaDB configuration
+chromadb:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: chromadb/chroma
+    tag: latest
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: fast-ssd
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Monitoring
+monitoring:
+  prometheus:
+    enabled: true
+    retention: 30d
+    storage:
+      size: 50Gi
+  grafana:
+    enabled: true
+    adminPassword: "changeme"
+    persistence:
+      enabled: true
+      size: 10Gi
+  sentry:
+    enabled: true
+    dsn: ""
+
+# Security
+security:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+  serviceAccount:
+    create: true
+  rbac:
+    create: true
+
+# Secrets (use external-secrets or sealed-secrets in production!)
+secrets:
+  jwt:
+    secret: "your-very-secure-jwt-secret-minimum-32-characters"
+    refreshSecret: "your-very-secure-refresh-secret-minimum-32-characters"
+  stripe:
+    secretKey: "sk_live_xxx"
+    webhookSecret: "whsec_xxx"
+  oauth:
+    google:
+      clientId: "xxx"
+      clientSecret: "xxx"
+    github:
+      clientId: "xxx"
+      clientSecret: "xxx"
+  encryption:
+    key: "your-32-character-encryption-key"
+  google:
+    apiKey: "your-google-api-key"
+
+# Cost optimization settings
+costOptimization:
+  spotInstances:
+    enabled: true
+    maxPrice: 0.05
+  nodeSelector:
+    workload: general
+  tolerations:
+    - key: "spot"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  resourceQuotas:
+    enabled: true
+    limits:
+      cpu: "100"
+      memory: "200Gi"
+      persistentvolumeclaims: "20"
+  
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retention: 30
+  storageLocation: "s3://backup-bucket/ux-flow-engine"
+
+# Multi-tenancy
+multiTenancy:
+  enabled: false
+  isolation: namespace # or 'cluster'
+  
+# Feature flags
+features:
+  socialAuth: true
+  creditSystem: true
+  monitoring: true
+  rateLimit: true
+  backup: true
