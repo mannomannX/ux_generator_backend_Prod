@@ -3,9 +3,10 @@
 // Hybrid search with re-ranking and citation
 // ==========================================
 
-import { ChromaClient } from 'chromadb';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import crypto from 'crypto';
+import { ChromaDBConnectionManager } from '../services/chromadb-manager.js';
+import { CONFIG } from '../config/constants.js';
 
 export class EnhancedRAGSystem {
   constructor(logger, mongoClient, redisClient, embeddingManager) {
@@ -14,30 +15,28 @@ export class EnhancedRAGSystem {
     this.redisClient = redisClient;
     this.embeddingManager = embeddingManager;
     
-    // ChromaDB configuration
-    this.chromaClient = new ChromaClient({
-      path: process.env.CHROMADB_URL || 'http://localhost:8000'
-    });
+    // ChromaDB manager (will be initialized in initialize())
+    this.chromaManager = null;
     
-    // RAG configuration
+    // RAG configuration from centralized config
     this.ragConfig = {
-      topK: 10, // Retrieve top 10 candidates
-      finalK: 5, // Return top 5 after re-ranking
-      chunkSize: 1000,
-      chunkOverlap: 200,
-      minRelevanceScore: 0.7,
-      maxContextTokens: 8000,
+      topK: CONFIG.RAG.SEARCH.TOP_K,
+      finalK: CONFIG.RAG.SEARCH.FINAL_K,
+      chunkSize: CONFIG.RAG.CHUNKING.SIZE,
+      chunkOverlap: CONFIG.RAG.CHUNKING.OVERLAP,
+      minRelevanceScore: CONFIG.RAG.SEARCH.MIN_RELEVANCE,
+      maxContextTokens: CONFIG.RAG.SEARCH.MAX_CONTEXT_TOKENS,
       hybridSearchWeight: {
-        semantic: 0.7,
-        keyword: 0.3
+        semantic: CONFIG.RAG.HYBRID_SEARCH_WEIGHT.VECTOR,
+        keyword: CONFIG.RAG.HYBRID_SEARCH_WEIGHT.KEYWORD
       }
     };
     
-    // Collection naming strategy
+    // Collection naming strategy from centralized config
     this.collections = {
-      global: 'global_knowledge',
-      workspace: (workspaceId) => `workspace_${workspaceId}`,
-      project: (projectId) => `project_${projectId}`
+      global: CONFIG.CHROMADB.COLLECTIONS.GLOBAL,
+      workspace: (workspaceId) => `${CONFIG.CHROMADB.COLLECTIONS.WORKSPACE_PREFIX}${workspaceId}`,
+      project: (projectId) => `${CONFIG.CHROMADB.COLLECTIONS.PROJECT_PREFIX}${projectId}`
     };
     
     // Text splitter for chunking
@@ -63,6 +62,16 @@ export class EnhancedRAGSystem {
    */
   async initialize() {
     try {
+      // Initialize ChromaDB connection using centralized manager
+      this.chromaManager = await ChromaDBConnectionManager.getConnection(
+        this.logger,
+        {
+          host: process.env.CHROMADB_HOST || 'localhost',
+          port: parseInt(process.env.CHROMADB_PORT) || 8000,
+          ssl: process.env.CHROMADB_SSL === 'true'
+        }
+      );
+      
       // Create database indexes
       await this.createDatabaseIndexes();
       
@@ -123,22 +132,13 @@ export class EnhancedRAGSystem {
       ];
       
       for (const collectionName of collections) {
-        try {
-          await this.chromaClient.getCollection({
-            name: collectionName
-          });
-        } catch (error) {
-          // Collection doesn't exist, create it
-          await this.chromaClient.createCollection({
-            name: collectionName,
-            metadata: { 
-              type: 'knowledge_base',
-              created_at: new Date().toISOString()
-            }
-          });
-          
-          this.logger.info('Created ChromaDB collection', { name: collectionName });
-        }
+        // Use centralized manager to get or create collection
+        await this.chromaManager.getOrCreateCollection(collectionName, {
+          type: 'knowledge_base',
+          created_at: new Date().toISOString()
+        });
+        
+        this.logger.info('Initialized ChromaDB collection', { name: collectionName });
       }
       
     } catch (error) {
@@ -235,9 +235,11 @@ export class EnhancedRAGSystem {
       // Ensure collection exists
       await this.ensureCollection(collectionName, type, workspaceId, projectId);
       
-      // Get ChromaDB collection
-      const collection = await this.chromaClient.getCollection({
-        name: collectionName
+      // Get or create ChromaDB collection
+      const collection = await this.chromaManager.getOrCreateCollection(collectionName, {
+        type,
+        workspaceId,
+        projectId
       });
 
       // Prepare chunk data for ChromaDB
@@ -448,9 +450,10 @@ export class EnhancedRAGSystem {
 
     for (const collectionInfo of collections) {
       try {
-        const collection = await this.chromaClient.getCollection({
-          name: collectionInfo.name
-        });
+        const collection = await this.chromaManager.getOrCreateCollection(
+          collectionInfo.name,
+          { type: collectionInfo.type }
+        );
 
         // Build where clause for filtering
         const whereClause = this.buildWhereClause(collectionInfo.type, workspaceId, projectId);
@@ -753,23 +756,24 @@ export class EnhancedRAGSystem {
    */
   async ensureCollection(collectionName, type, workspaceId, projectId) {
     try {
-      await this.chromaClient.getCollection({ name: collectionName });
-    } catch (error) {
-      // Collection doesn't exist, create it
-      await this.chromaClient.createCollection({
-        name: collectionName,
-        metadata: {
-          type,
-          workspace_id: workspaceId,
-          project_id: projectId,
-          created_at: new Date().toISOString()
-        }
+      // Use centralized manager to ensure collection exists
+      await this.chromaManager.getOrCreateCollection(collectionName, {
+        type,
+        workspace_id: workspaceId,
+        project_id: projectId,
+        created_at: new Date().toISOString()
       });
       
-      this.logger.info('Created ChromaDB collection', { 
+      this.logger.debug('Ensured ChromaDB collection exists', { 
         name: collectionName,
         type 
       });
+    } catch (error) {
+      this.logger.error('Failed to ensure collection', { 
+        collectionName, 
+        error: error.message 
+      });
+      throw error;
     }
   }
 

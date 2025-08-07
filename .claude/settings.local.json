@@ -9,7 +9,8 @@
       "Bash(npm install:*)",
       "Bash(touch:*)",
       "Bash(echo:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(npm test)"
     ],
     "deny": []
   }

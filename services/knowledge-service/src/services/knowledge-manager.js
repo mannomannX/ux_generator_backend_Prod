@@ -2,10 +2,13 @@
 // SERVICES/KNOWLEDGE-SERVICE/src/services/knowledge-manager.js
 // ==========================================
 
-import { ChromaClient, OpenAIEmbeddingFunction, Collection } from 'chromadb';
+import { OpenAIEmbeddingFunction, Collection } from 'chromadb';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import crypto from 'crypto';
 import { ObjectId } from 'mongodb';
+import { ChromaDBConnectionManager } from './chromadb-manager.js';
+import { CONFIG } from '../config/constants.js';
+import { ErrorFactory, ErrorHandler } from '../utils/errors.js';
 
 export class KnowledgeManager {
   constructor(logger, mongoClient, redisClient, config) {
@@ -14,8 +17,8 @@ export class KnowledgeManager {
     this.redisClient = redisClient;
     this.config = config;
     
-    // ChromaDB client
-    this.chromaClient = null;
+    // ChromaDB manager (singleton)
+    this.chromaManager = null;
     this.collections = new Map();
     
     // Embedding models
@@ -27,17 +30,25 @@ export class KnowledgeManager {
     this.documentsCollection = null;
     this.queriesCollection = null;
     
-    // Cache settings
-    this.cacheTimeout = 3600000; // 1 hour
+    // Cache settings from centralized config
+    this.cacheTimeout = CONFIG.CACHE.TTL.DEFAULT * 1000; // Convert to milliseconds
     this.semanticCache = new Map();
+    
+    // Error handler
+    this.errorHandler = new ErrorHandler(this.logger);
   }
 
   async initialize() {
     try {
-      // Initialize ChromaDB
-      this.chromaClient = new ChromaClient({
-        path: this.config.chromadb?.path || 'http://localhost:8000'
-      });
+      // Initialize ChromaDB using centralized manager
+      this.chromaManager = await ChromaDBConnectionManager.getConnection(
+        this.logger,
+        {
+          host: this.config.chromadb?.host || 'localhost',
+          port: this.config.chromadb?.port || 8000,
+          ssl: this.config.chromadb?.ssl || false
+        }
+      );
 
       // Initialize embedding models
       if (this.config.gemini?.apiKey) {
@@ -125,23 +136,11 @@ export class KnowledgeManager {
         return this.collections.get(name);
       }
 
-      let collection;
-      try {
-        collection = await this.chromaClient.getCollection({
-          name,
-          embeddingFunction: this.getEmbeddingFunction()
-        });
-      } catch (error) {
-        // Collection doesn't exist, create it
-        collection = await this.chromaClient.createCollection({
-          name,
-          metadata: {
-            ...metadata,
-            createdAt: new Date().toISOString()
-          },
-          embeddingFunction: this.getEmbeddingFunction()
-        });
-      }
+      // Use ChromaDB manager to get or create collection
+      const collection = await this.chromaManager.getOrCreateCollection(name, {
+        ...metadata,
+        embeddingFunction: this.getEmbeddingFunction()
+      });
 
       this.collections.set(name, collection);
       return collection;
@@ -181,7 +180,7 @@ export class KnowledgeManager {
   async generateEmbedding(text) {
     try {
       if (!this.embeddingModel) {
-        throw new Error('Embedding model not initialized');
+        throw ErrorFactory.configuration('embeddingModel', 'Embedding model not initialized');
       }
 
       const result = await this.embeddingModel.embedContent(text);

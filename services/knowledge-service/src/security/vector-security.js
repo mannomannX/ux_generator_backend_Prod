@@ -1,12 +1,17 @@
 import { Logger } from '@ux-flow/common';
 import crypto from 'crypto';
+import { CONFIG } from '../config/constants.js';
+import { ErrorFactory } from '../utils/errors.js';
 
 export class VectorSecurity {
   constructor(logger = new Logger('VectorSecurity')) {
     this.logger = logger;
     
-    // Security thresholds
-    this.maxVectorDimension = 4096;
+    // Security thresholds from config
+    this.maxVectorDimension = CONFIG.SECURITY.VECTOR.MAX_DIMENSION;
+    this.minVectorDimension = CONFIG.SECURITY.VECTOR.MIN_DIMENSION;
+    this.maxMetadataSize = CONFIG.SECURITY.VECTOR.MAX_METADATA_SIZE;
+    this.allowedMetadataKeys = CONFIG.SECURITY.VECTOR.ALLOWED_METADATA_KEYS;
     this.maxQueryResults = 100;
     this.minSimilarityScore = 0.0;
     this.maxSimilarityScore = 1.0;
@@ -359,6 +364,215 @@ export class VectorSecurity {
     };
   }
   
+  /**
+   * Comprehensive vector validation
+   */
+  validateVector(vector, expectedDimension = null) {
+    const validation = {
+      valid: true,
+      errors: [],
+      warnings: []
+    };
+
+    // Check if vector exists and is array
+    if (!vector || !Array.isArray(vector)) {
+      validation.valid = false;
+      validation.errors.push('Vector must be a non-empty array');
+      return validation;
+    }
+
+    // Check dimension bounds
+    if (vector.length < this.minVectorDimension) {
+      validation.valid = false;
+      validation.errors.push(`Vector dimension ${vector.length} is below minimum ${this.minVectorDimension}`);
+    }
+
+    if (vector.length > this.maxVectorDimension) {
+      validation.valid = false;
+      validation.errors.push(`Vector dimension ${vector.length} exceeds maximum ${this.maxVectorDimension}`);
+    }
+
+    // Check expected dimension if provided
+    if (expectedDimension && vector.length !== expectedDimension) {
+      validation.valid = false;
+      validation.errors.push(`Vector dimension ${vector.length} does not match expected ${expectedDimension}`);
+    }
+
+    // Validate vector values
+    let hasNaN = false;
+    let hasInfinity = false;
+    let outOfRange = false;
+    let zeroVector = true;
+    let magnitude = 0;
+
+    for (let i = 0; i < vector.length; i++) {
+      const value = vector[i];
+
+      // Check if value is a number
+      if (typeof value !== 'number') {
+        validation.valid = false;
+        validation.errors.push(`Non-numeric value at index ${i}: ${typeof value}`);
+        continue;
+      }
+
+      // Check for NaN
+      if (isNaN(value)) {
+        hasNaN = true;
+        validation.valid = false;
+      }
+
+      // Check for Infinity
+      if (!isFinite(value)) {
+        hasInfinity = true;
+        validation.valid = false;
+      }
+
+      // Check range (typical embeddings are between -1 and 1, but allow wider range)
+      if (value < -100 || value > 100) {
+        outOfRange = true;
+        validation.warnings.push(`Value at index ${i} is unusually large: ${value}`);
+      }
+
+      // Check if vector is all zeros
+      if (value !== 0) {
+        zeroVector = false;
+      }
+
+      // Calculate magnitude for normalization check
+      magnitude += value * value;
+    }
+
+    if (hasNaN) {
+      validation.errors.push('Vector contains NaN values');
+    }
+
+    if (hasInfinity) {
+      validation.errors.push('Vector contains Infinity values');
+    }
+
+    if (outOfRange) {
+      validation.warnings.push('Vector contains values outside typical range');
+    }
+
+    if (zeroVector) {
+      validation.valid = false;
+      validation.errors.push('Vector is all zeros');
+    }
+
+    // Check if vector is normalized (magnitude should be close to 1)
+    magnitude = Math.sqrt(magnitude);
+    if (magnitude < 0.9 || magnitude > 1.1) {
+      validation.warnings.push(`Vector may not be normalized (magnitude: ${magnitude.toFixed(4)})`);
+    }
+
+    return validation;
+  }
+
+  /**
+   * Validate vector metadata
+   */
+  validateMetadata(metadata) {
+    const validation = {
+      valid: true,
+      errors: [],
+      sanitized: {}
+    };
+
+    if (!metadata || typeof metadata !== 'object') {
+      return validation;
+    }
+
+    // Check metadata size
+    const metadataStr = JSON.stringify(metadata);
+    if (metadataStr.length > this.maxMetadataSize) {
+      validation.valid = false;
+      validation.errors.push(`Metadata size ${metadataStr.length} exceeds maximum ${this.maxMetadataSize}`);
+      return validation;
+    }
+
+    // Validate and sanitize each key
+    for (const [key, value] of Object.entries(metadata)) {
+      // Check if key is allowed
+      if (this.allowedMetadataKeys.length > 0 && !this.allowedMetadataKeys.includes(key)) {
+        validation.errors.push(`Metadata key '${key}' is not allowed`);
+        continue;
+      }
+
+      // Sanitize key (remove special characters)
+      const sanitizedKey = key.replace(/[^a-zA-Z0-9_]/g, '_');
+      if (sanitizedKey !== key) {
+        validation.warnings.push(`Metadata key '${key}' was sanitized to '${sanitizedKey}'`);
+      }
+
+      // Sanitize value based on type
+      if (typeof value === 'string') {
+        validation.sanitized[sanitizedKey] = value.replace(/[<>'"]/g, '');
+      } else if (typeof value === 'number' || typeof value === 'boolean') {
+        validation.sanitized[sanitizedKey] = value;
+      } else if (value instanceof Date) {
+        validation.sanitized[sanitizedKey] = value.toISOString();
+      } else if (Array.isArray(value)) {
+        validation.sanitized[sanitizedKey] = value.map(v => 
+          typeof v === 'string' ? v.replace(/[<>'"]/g, '') : v
+        );
+      } else if (typeof value === 'object' && value !== null) {
+        // Recursively validate nested objects (limited depth)
+        const nestedValidation = this.validateMetadata(value);
+        validation.sanitized[sanitizedKey] = nestedValidation.sanitized;
+      } else {
+        validation.errors.push(`Invalid metadata value type for key '${key}': ${typeof value}`);
+      }
+    }
+
+    return validation;
+  }
+
+  /**
+   * Validate similarity score
+   */
+  validateSimilarityScore(score) {
+    if (typeof score !== 'number') {
+      throw ErrorFactory.invalidVector('Similarity score must be a number');
+    }
+
+    if (isNaN(score) || !isFinite(score)) {
+      throw ErrorFactory.invalidVector('Similarity score must be a valid number');
+    }
+
+    if (score < this.minSimilarityScore || score > this.maxSimilarityScore) {
+      throw ErrorFactory.invalidVector(
+        `Similarity score ${score} is outside valid range [${this.minSimilarityScore}, ${this.maxSimilarityScore}]`
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * Sanitize vector for storage
+   */
+  sanitizeVector(vector) {
+    if (!Array.isArray(vector)) {
+      throw ErrorFactory.invalidVector('Vector must be an array');
+    }
+
+    return vector.map(value => {
+      // Convert to number and handle edge cases
+      const num = Number(value);
+      
+      if (isNaN(num)) {
+        throw ErrorFactory.invalidVector('Vector contains non-numeric values');
+      }
+      
+      if (!isFinite(num)) {
+        throw ErrorFactory.invalidVector('Vector contains infinite values');
+      }
+      
+      // Round to reasonable precision to avoid floating point issues
+      return Math.round(num * 1000000) / 1000000;
+    });
+  }
+
   generateSecureId() {
     // Generate a secure random ID for vector documents
     return crypto.randomBytes(16).toString('hex');
