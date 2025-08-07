@@ -84,20 +84,22 @@ const config = {
     jwtSecret: getSecureSecret('JWT_SECRET'),
     jwtRefreshSecret: getSecureSecret('JWT_REFRESH_SECRET'),
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
-    refreshTokenExpiresIn: '7d',
-    passwordResetExpiresIn: '1h',
-    emailVerificationExpiresIn: '24h',
-    maxLoginAttempts: 5,
-    lockoutDuration: 15 * 60 * 1000, // 15 minutes
-    jwtAlgorithm: 'HS512',
-    jwtIssuer: 'ux-flow-engine',
-    jwtAudience: 'ux-flow-users',
+    refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
+    passwordResetExpiresIn: process.env.PASSWORD_RESET_EXPIRES_IN || '1h',
+    emailVerificationExpiresIn: process.env.EMAIL_VERIFICATION_EXPIRES_IN || '24h',
+    maxLoginAttempts: parseInt(process.env.MAX_LOGIN_ATTEMPTS) || 5,
+    lockoutDuration: parseInt(process.env.LOCKOUT_DURATION) || 15 * 60 * 1000, // 15 minutes
+    jwtAlgorithm: process.env.JWT_ALGORITHM || 'HS512',
+    jwtIssuer: process.env.JWT_ISSUER || 'ux-flow-engine',
+    jwtAudience: process.env.JWT_AUDIENCE || 'ux-flow-users',
+    sessionTimeout: parseInt(process.env.SESSION_TIMEOUT) || 30 * 60 * 1000, // 30 minutes
+    rememberMeDuration: parseInt(process.env.REMEMBER_ME_DURATION) || 30 * 24 * 60 * 60 * 1000, // 30 days
     
     // Enhanced password policy
     passwordPolicy: {
-      minLength: 8,
-      maxLength: 128,
-      requireUppercase: true,
+      minLength: parseInt(process.env.PASSWORD_MIN_LENGTH) || 8,
+      maxLength: parseInt(process.env.PASSWORD_MAX_LENGTH) || 128,
+      requireUppercase: process.env.PASSWORD_REQUIRE_UPPERCASE !== 'false',
       requireLowercase: true,
       requireNumbers: true,
       requireSpecialChars: true,

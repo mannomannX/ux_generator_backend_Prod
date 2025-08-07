@@ -11,6 +11,7 @@ import { UserManager } from './services/user-manager.js';
 import { WorkspaceManager } from './services/workspace-manager.js';
 import { EventHandlers } from './events/event-handlers.js';
 import { EmailService } from './services/email-service.js';
+import { TokenCleanupJob } from './jobs/token-cleanup.js';
 import config from './config/index.js';
 
 // Route imports
@@ -34,6 +35,7 @@ class UserManagementService {
     this.workspaceManager = null;
     this.emailService = null;
     this.eventHandlers = null;
+    this.tokenCleanupJob = null;
   }
 
   async initialize() {
@@ -79,6 +81,9 @@ class UserManagementService {
 
       // Initialize database collections
       await this.initializeDatabase();
+
+      // Start background jobs
+      this.startBackgroundJobs();
 
       this.logger.info('User Management Service initialized successfully');
     } catch (error) {
@@ -205,6 +210,20 @@ class UserManagementService {
     this.eventHandlers.setupAllHandlers();
   }
 
+  startBackgroundJobs() {
+    // Start token cleanup job
+    this.tokenCleanupJob = new TokenCleanupJob(
+      this.logger,
+      this.mongoClient,
+      this.redisClient
+    );
+    
+    // Run cleanup every hour
+    this.tokenCleanupJob.start(60 * 60 * 1000);
+    
+    this.logger.info('Background jobs started');
+  }
+
   async initializeDatabase() {
     try {
       // Initialize comprehensive database indexes using IndexManager
@@ -246,6 +265,11 @@ class UserManagementService {
     this.logger.info('Shutting down User Management Service...');
     
     try {
+      // Stop background jobs
+      if (this.tokenCleanupJob) {
+        this.tokenCleanupJob.stop();
+      }
+      
       // Close database connections
       await this.mongoClient.disconnect();
       await this.redisClient.disconnect();

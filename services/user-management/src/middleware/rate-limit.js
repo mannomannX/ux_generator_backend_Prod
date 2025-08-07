@@ -21,7 +21,14 @@ export const apiRateLimit = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  handler: (req, res) => {
+  handler: (req, res, next, options) => {
+    // Add comprehensive rate limit headers
+    res.setHeader('RateLimit-Limit', options.max);
+    res.setHeader('RateLimit-Remaining', req.rateLimit.remaining);
+    res.setHeader('RateLimit-Reset', new Date(req.rateLimit.resetTime).toISOString());
+    res.setHeader('Retry-After', Math.ceil(config.rateLimit.api.windowMs / 1000));
+    res.setHeader('X-RateLimit-RetryAfter', new Date(req.rateLimit.resetTime).toISOString());
+    
     res.status(429).json({
       error: {
         code: 'RATE_LIMIT_EXCEEDED',
@@ -52,7 +59,14 @@ export const authRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful requests
-  handler: (req, res) => {
+  handler: (req, res, next, options) => {
+    // Add comprehensive rate limit headers
+    res.setHeader('RateLimit-Limit', options.max);
+    res.setHeader('RateLimit-Remaining', req.rateLimit.remaining);
+    res.setHeader('RateLimit-Reset', new Date(req.rateLimit.resetTime).toISOString());
+    res.setHeader('Retry-After', Math.ceil(config.rateLimit.auth.windowMs / 1000));
+    res.setHeader('X-RateLimit-RetryAfter', new Date(req.rateLimit.resetTime).toISOString());
+    
     res.status(429).json({
       error: {
         code: 'AUTH_RATE_LIMIT_EXCEEDED',
@@ -82,7 +96,14 @@ export const workspaceRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  handler: (req, res) => {
+  handler: (req, res, next, options) => {
+    // Add comprehensive rate limit headers
+    res.setHeader('RateLimit-Limit', options.max);
+    res.setHeader('RateLimit-Remaining', req.rateLimit.remaining);
+    res.setHeader('RateLimit-Reset', new Date(req.rateLimit.resetTime).toISOString());
+    res.setHeader('Retry-After', Math.ceil(config.rateLimit.workspace.windowMs / 1000));
+    res.setHeader('X-RateLimit-RetryAfter', new Date(req.rateLimit.resetTime).toISOString());
+    
     res.status(429).json({
       error: {
         code: 'WORKSPACE_RATE_LIMIT_EXCEEDED',
@@ -118,7 +139,14 @@ export const createRateLimit = (options = {}) => {
       // Default: use IP address and user ID if available
       return req.user ? `${req.ip}_${req.user.userId}` : req.ip;
     }),
-    handler: (req, res) => {
+    handler: (req, res, next, options) => {
+      // Add comprehensive rate limit headers
+      res.setHeader('RateLimit-Limit', options.max);
+      res.setHeader('RateLimit-Remaining', req.rateLimit.remaining);
+      res.setHeader('RateLimit-Reset', new Date(req.rateLimit.resetTime).toISOString());
+      res.setHeader('Retry-After', Math.ceil(windowMs / 1000));
+      res.setHeader('X-RateLimit-RetryAfter', new Date(req.rateLimit.resetTime).toISOString());
+      
       res.status(429).json({
         error: {
           code: 'RATE_LIMIT_EXCEEDED',
@@ -161,7 +189,14 @@ export const emailRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  handler: (req, res) => {
+  handler: (req, res, next, options) => {
+    // Add comprehensive rate limit headers
+    res.setHeader('RateLimit-Limit', options.max);
+    res.setHeader('RateLimit-Remaining', req.rateLimit.remaining);
+    res.setHeader('RateLimit-Reset', new Date(req.rateLimit.resetTime).toISOString());
+    res.setHeader('Retry-After', 900);
+    res.setHeader('X-RateLimit-RetryAfter', new Date(req.rateLimit.resetTime).toISOString());
+    
     res.status(429).json({
       error: {
         code: 'EMAIL_RATE_LIMIT_EXCEEDED',
