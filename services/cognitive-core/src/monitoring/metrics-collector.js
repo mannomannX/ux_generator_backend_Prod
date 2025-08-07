@@ -738,7 +738,10 @@ export class MetricsCollector {
   }
 
   generateRequestId() {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    // Use crypto for secure random ID generation instead of Math.random
+    const crypto = require('crypto');
+    const randomBytes = crypto.randomBytes(4).toString('hex');
+    return `req_${Date.now()}_${randomBytes}`;
   }
 
   /**

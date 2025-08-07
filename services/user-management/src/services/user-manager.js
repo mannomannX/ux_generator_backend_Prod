@@ -3,6 +3,10 @@
 // ==========================================
 import bcrypt from 'bcrypt';
 import { MongoClient, JWTUtils, Validators, CacheManager } from '@ux-flow/common';
+import { PasswordManager } from '../security/password-manager.js';
+import { TokenManager } from '../security/token-manager.js';
+import { AccountLockout } from '../security/account-lockout.js';
+import { TwoFactorAuth } from '../security/two-factor-auth.js';
 
 class UserManager {
   constructor(logger, mongoClient, redisClient) {
@@ -16,6 +20,12 @@ class UserManager {
       defaultTtl: 300, // 5 minutes
       enableMetrics: true,
     });
+    
+    // Initialize security modules
+    this.passwordManager = new PasswordManager(logger, mongoClient);
+    this.tokenManager = new TokenManager(logger, redisClient);
+    this.accountLockout = new AccountLockout(logger, redisClient);
+    this.twoFactorAuth = new TwoFactorAuth(logger, mongoClient, redisClient);
     
     // User cache TTL (5 minutes)
     this.userCacheTTL = 300;
@@ -31,9 +41,8 @@ class UserManager {
         throw new Error('User with this email already exists');
       }
 
-      // Hash password
-      const saltRounds = 12;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      // Hash password using enhanced PasswordManager with Argon2id
+      const hashedPassword = await this.passwordManager.hashPassword(password);
 
       // Create user document
       const user = {
@@ -286,10 +295,11 @@ class UserManager {
         updatedAt: new Date(),
       };
 
-      // Hash password if being updated
+      // Hash password if being updated using PasswordManager
       if (updates.password) {
-        const saltRounds = 12;
-        updateData.password = await bcrypt.hash(updates.password, saltRounds);
+        updateData.password = await this.passwordManager.hashPassword(updates.password);
+        // Track password change for history
+        await this.passwordManager.addToHistory(userId, updateData.password);
       }
 
       // Normalize email if being updated
@@ -328,10 +338,25 @@ class UserManager {
     }
   }
 
-  async authenticateUser(email, password) {
+  async authenticateUser(email, password, metadata = {}) {
     try {
+      const { ipAddress, userAgent } = metadata;
+      
+      // Check if account is locked
+      const isLocked = await this.accountLockout.isLocked(email, ipAddress);
+      if (isLocked) {
+        const lockInfo = await this.accountLockout.getLockInfo(email, ipAddress);
+        return { 
+          success: false, 
+          reason: 'Account temporarily locked',
+          lockedUntil: lockInfo.lockedUntil
+        };
+      }
+      
       const user = await this.getUserByEmail(email);
       if (!user) {
+        // Record failed attempt
+        await this.accountLockout.recordFailedAttempt(email, ipAddress);
         return { 
           success: false, 
           reason: 'Invalid email or password' 
@@ -345,25 +370,43 @@ class UserManager {
         };
       }
 
-      // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      // Verify password using PasswordManager
+      const isValidPassword = await this.passwordManager.verifyPassword(password, user.password);
       if (!isValidPassword) {
+        // Record failed attempt
+        await this.accountLockout.recordFailedAttempt(email, ipAddress);
         return { 
           success: false, 
           reason: 'Invalid email or password' 
         };
       }
+      
+      // Clear failed attempts on successful login
+      await this.accountLockout.clearFailedAttempts(email, ipAddress);
+      
+      // Check if 2FA is enabled
+      const has2FA = await this.twoFactorAuth.isEnabled(user.id);
+      if (has2FA) {
+        // Generate temporary token for 2FA verification
+        const tempToken = await this.tokenManager.generateTempToken(user.id, '2fa_pending');
+        return {
+          success: false,
+          reason: '2fa_required',
+          tempToken,
+          userId: user.id
+        };
+      }
 
-      // Generate JWT token
-      const tokenPayload = {
-        userId: user.id,
+      // Generate JWT token pair using TokenManager
+      const tokenPair = await this.tokenManager.generateTokenPair(user.id, {
         email: user.email,
         workspaceId: user.workspaceId,
         role: user.role,
         permissions: user.permissions,
-      };
-
-      const token = JWTUtils.sign(tokenPayload);
+      });
+      
+      // Update last login
+      await this.updateLastLogin(user.id);
 
       this.logger.info('User authenticated successfully', {
         userId: user.id,
@@ -383,7 +426,7 @@ class UserManager {
           emailVerified: user.emailVerified,
           lastLoginAt: user.lastLoginAt,
         },
-        token,
+        tokens: tokenPair,
       };
 
     } catch (error) {
@@ -634,6 +677,178 @@ class UserManager {
     }
   }
 
+  // Update last login time
+  async updateLastLogin(userId) {
+    try {
+      const db = this.mongoClient.getDb();
+      await db.collection('users').updateOne(
+        { _id: MongoClient.createObjectId(userId) },
+        { $set: { lastLoginAt: new Date() } }
+      );
+    } catch (error) {
+      this.logger.warn('Failed to update last login', error, { userId });
+    }
+  }
+  
+  // Verify 2FA token
+  async verify2FA(userId, token) {
+    try {
+      const isValid = await this.twoFactorAuth.verifyToken(userId, token);
+      
+      if (!isValid) {
+        return {
+          success: false,
+          reason: 'Invalid 2FA token'
+        };
+      }
+      
+      // Get user for token generation
+      const user = await this.getUser(userId);
+      if (!user) {
+        return {
+          success: false,
+          reason: 'User not found'
+        };
+      }
+      
+      // Generate JWT token pair after successful 2FA
+      const tokenPair = await this.tokenManager.generateTokenPair(userId, {
+        email: user.email,
+        workspaceId: user.workspaceId,
+        role: user.role,
+        permissions: user.permissions,
+        twoFactorVerified: true
+      });
+      
+      // Update last login
+      await this.updateLastLogin(userId);
+      
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          workspaceId: user.workspaceId,
+          role: user.role,
+          permissions: user.permissions,
+          emailVerified: user.emailVerified,
+        },
+        tokens: tokenPair
+      };
+      
+    } catch (error) {
+      this.logger.error('2FA verification failed', error, { userId });
+      throw error;
+    }
+  }
+  
+  // Enable 2FA for user
+  async enable2FA(userId) {
+    try {
+      const { secret, qrCode, backupCodes } = await this.twoFactorAuth.setupTOTP(userId);
+      return { secret, qrCode, backupCodes };
+    } catch (error) {
+      this.logger.error('Failed to enable 2FA', error, { userId });
+      throw error;
+    }
+  }
+  
+  // Disable 2FA for user
+  async disable2FA(userId) {
+    try {
+      await this.twoFactorAuth.disableTOTP(userId);
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Failed to disable 2FA', error, { userId });
+      throw error;
+    }
+  }
+  
+  // Refresh access token
+  async refreshToken(refreshToken) {
+    try {
+      const tokenPair = await this.tokenManager.refreshTokens(refreshToken);
+      return tokenPair;
+    } catch (error) {
+      this.logger.error('Failed to refresh token', error);
+      throw error;
+    }
+  }
+  
+  // Revoke tokens
+  async revokeTokens(userId) {
+    try {
+      await this.tokenManager.revokeAllTokens(userId);
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Failed to revoke tokens', error, { userId });
+      throw error;
+    }
+  }
+  
+  // Change password with validation
+  async changePassword(userId, currentPassword, newPassword) {
+    try {
+      const user = await this.getUser(userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+      
+      // Get full user with password
+      const fullUser = await this.getUserByEmail(user.email);
+      
+      // Verify current password
+      const isValid = await this.passwordManager.verifyPassword(currentPassword, fullUser.password);
+      if (!isValid) {
+        return {
+          success: false,
+          reason: 'Current password is incorrect'
+        };
+      }
+      
+      // Check password history
+      const isReused = await this.passwordManager.isPasswordReused(userId, newPassword);
+      if (isReused) {
+        return {
+          success: false,
+          reason: 'Password has been used recently. Please choose a different password.'
+        };
+      }
+      
+      // Hash and update new password
+      const hashedPassword = await this.passwordManager.hashPassword(newPassword);
+      
+      const db = this.mongoClient.getDb();
+      await db.collection('users').updateOne(
+        { _id: MongoClient.createObjectId(userId) },
+        { 
+          $set: { 
+            password: hashedPassword,
+            updatedAt: new Date(),
+            passwordChangedAt: new Date()
+          } 
+        }
+      );
+      
+      // Add to password history
+      await this.passwordManager.addToHistory(userId, hashedPassword);
+      
+      // Revoke all existing tokens
+      await this.tokenManager.revokeAllTokens(userId);
+      
+      return {
+        success: true,
+        message: 'Password changed successfully. Please log in again.'
+      };
+      
+    } catch (error) {
+      this.logger.error('Failed to change password', error, { userId });
+      throw error;
+    }
+  }
+  
   // Health check
   async healthCheck() {
     try {

@@ -309,7 +309,9 @@ class EpisodeDetector extends EventEmitter {
    * Generate unique episode ID
    */
   generateEpisodeId() {
-    return `episode_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    const crypto = require('crypto');
+    const randomBytes = crypto.randomBytes(4).toString('hex');
+    return `episode_${Date.now()}_${randomBytes}`;
   }
 
   /**

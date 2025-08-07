@@ -150,12 +150,28 @@ class AdaptiveCostOptimizer extends EventEmitter {
   }
 
   /**
-   * Estimate token count (rough approximation)
+   * Estimate token count
+   * More accurate estimation based on common tokenization patterns
    */
   estimateTokens(text) {
     if (!text) return 0;
-    // Rough estimate: 1 token ≈ 4 characters
-    return Math.ceil(text.length / 4);
+    
+    // More accurate estimation:
+    // - Average English word is ~4-5 characters
+    // - Average token is ~0.75 words
+    // - Add overhead for punctuation and special tokens
+    
+    // Count words (simple split)
+    const words = text.split(/\s+/).length;
+    
+    // Estimate tokens (roughly 1.3 tokens per word for English)
+    const baseTokens = Math.ceil(words * 1.3);
+    
+    // Add overhead for special characters and formatting
+    const specialChars = (text.match(/[^\w\s]/g) || []).length;
+    const overhead = Math.ceil(specialChars * 0.1);
+    
+    return baseTokens + overhead;
   }
 
   /**
