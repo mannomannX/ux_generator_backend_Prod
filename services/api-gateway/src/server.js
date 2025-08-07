@@ -7,7 +7,19 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
-import { Logger, EventEmitter, MongoClient, RedisClient, HealthCheck } from '@ux-flow/common';
+import { 
+  Logger, 
+  EventEmitter, 
+  MongoClient, 
+  RedisClient, 
+  HealthCheck,
+  RedisEventBus,
+  ServiceChannels,
+  InterServiceEvents,
+  ServiceRegistry,
+  createServiceConfig,
+  ServiceNames
+} from '@ux-flow/common';
 import { WebSocketManager } from './websocket/connection-manager.js';
 import { MessageHandler } from './websocket/message-handler.js';
 import { RoomManager } from './websocket/room-manager.js';
@@ -32,6 +44,10 @@ class ApiGatewayService {
     this.redisClient = new RedisClient(this.logger);
     this.healthCheck = new HealthCheck('api-gateway', this.logger);
     
+    // Inter-service communication
+    this.eventBus = null;
+    this.serviceRegistry = null;
+    
     // WebSocket components
     this.roomManager = null;
     this.messageHandler = null;
@@ -43,6 +59,32 @@ class ApiGatewayService {
       // Connect to databases
       await this.mongoClient.connect();
       await this.redisClient.connect();
+      
+      // Initialize Redis Event Bus for inter-service communication
+      this.eventBus = new RedisEventBus(
+        this.redisClient,
+        this.logger,
+        ServiceNames.API_GATEWAY
+      );
+      await this.eventBus.initialize();
+      await this.eventBus.subscribeToServiceEvents();
+      
+      // Initialize Service Registry
+      this.serviceRegistry = new ServiceRegistry(this.logger, this.redisClient);
+      await this.serviceRegistry.initialize();
+      
+      // Register this service
+      await this.serviceRegistry.register(
+        createServiceConfig(ServiceNames.API_GATEWAY, {
+          port: process.env.API_GATEWAY_PORT || 3000,
+          endpoints: [
+            '/api/v1/auth',
+            '/api/v1/projects',
+            '/api/v1/admin',
+            '/health'
+          ]
+        })
+      );
 
       // Initialize WebSocket components
       this.roomManager = new RoomManager(this.logger, this.redisClient);
@@ -166,8 +208,8 @@ class ApiGatewayService {
   }
 
   setupEventListeners() {
-    // Listen for responses from other services
-    this.eventEmitter.on('USER_RESPONSE_READY', (data) => {
+    // Listen for responses from other services via Redis Event Bus
+    this.eventBus.on(InterServiceEvents.RESPONSE_AI_PROCESSING, (data) => {
       this.wsManager.sendToUser(data.userId, data.projectId, {
         type: 'assistant_response',
         message: data.response.message,
@@ -177,7 +219,7 @@ class ApiGatewayService {
       });
     });
 
-    this.eventEmitter.on('FLOW_UPDATED', (data) => {
+    this.eventBus.on(InterServiceEvents.NOTIFY_FLOW_UPDATED, (data) => {
       this.wsManager.broadcastToProject(data.projectId, {
         type: 'flow_updated',
         flow: data.flow,
@@ -185,9 +227,16 @@ class ApiGatewayService {
       });
     });
 
-    this.eventEmitter.on('SERVICE_ERROR', (data) => {
+    this.eventBus.on('SERVICE_ERROR', (data) => {
       this.logger.error('Service error received', null, data);
-      // Could implement error notification to clients here
+      // Notify clients of service errors
+      if (data.userId && data.projectId) {
+        this.wsManager.sendToUser(data.userId, data.projectId, {
+          type: 'service_error',
+          error: data.error,
+          service: data.service
+        });
+      }
     });
 
     this.logger.info('Event listeners setup completed');
@@ -221,6 +270,15 @@ class ApiGatewayService {
         await this.wsManager.shutdown();
       }
 
+      // Cleanup services
+      if (this.eventBus) {
+        await this.eventBus.disconnect();
+      }
+      
+      if (this.serviceRegistry) {
+        await this.serviceRegistry.cleanup();
+      }
+      
       // Close database connections
       await this.mongoClient.disconnect();
       await this.redisClient.disconnect();

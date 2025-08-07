@@ -3,7 +3,18 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
-import { Logger, EventEmitter, MongoClient, RedisClient, HealthCheck } from '@ux-flow/common';
+import { 
+  Logger, 
+  EventEmitter, 
+  MongoClient, 
+  RedisClient, 
+  HealthCheck,
+  RedisEventBus,
+  ServiceRegistry,
+  createServiceConfig,
+  ServiceNames,
+  InterServiceEvents
+} from '@ux-flow/common';
 import { AgentOrchestrator } from './orchestrator/agent-orchestrator.js';
 import { EventHandlers } from './orchestrator/event-handlers.js';
 import config from './config/index.js';
@@ -16,6 +27,11 @@ class CognitiveCoreService {
     this.mongoClient = new MongoClient(this.logger);
     this.redisClient = new RedisClient(this.logger);
     this.healthCheck = new HealthCheck('cognitive-core', this.logger);
+    
+    // Inter-service communication
+    this.eventBus = null;
+    this.serviceRegistry = null;
+    
     this.orchestrator = null;
     this.eventHandlers = null;
   }
@@ -25,6 +41,31 @@ class CognitiveCoreService {
       // Connect to databases
       await this.mongoClient.connect();
       await this.redisClient.connect();
+      
+      // Initialize Redis Event Bus
+      this.eventBus = new RedisEventBus(
+        this.redisClient,
+        this.logger,
+        ServiceNames.COGNITIVE_CORE
+      );
+      await this.eventBus.initialize();
+      await this.eventBus.subscribeToServiceEvents();
+      
+      // Initialize Service Registry
+      this.serviceRegistry = new ServiceRegistry(this.logger, this.redisClient);
+      await this.serviceRegistry.initialize();
+      
+      // Register this service
+      await this.serviceRegistry.register(
+        createServiceConfig(ServiceNames.COGNITIVE_CORE, {
+          port: process.env.COGNITIVE_CORE_PORT || 3001,
+          endpoints: [
+            '/agents',
+            '/agents/:agentName/invoke',
+            '/health'
+          ]
+        })
+      );
 
       // Initialize orchestrator and event handlers
       this.orchestrator = new AgentOrchestrator(
@@ -36,8 +77,9 @@ class CognitiveCoreService {
 
       this.eventHandlers = new EventHandlers(
         this.logger,
-        this.eventEmitter,
-        this.orchestrator
+        this.eventBus,
+        this.orchestrator,
+        this.serviceRegistry
       );
 
       // Setup health checks
@@ -145,6 +187,15 @@ class CognitiveCoreService {
     this.logger.info('Shutting down Cognitive Core Service...');
     
     try {
+      // Cleanup services
+      if (this.eventBus) {
+        await this.eventBus.disconnect();
+      }
+      
+      if (this.serviceRegistry) {
+        await this.serviceRegistry.cleanup();
+      }
+      
       await this.mongoClient.disconnect();
       await this.redisClient.disconnect();
       this.logger.info('Cognitive Core Service shut down successfully');

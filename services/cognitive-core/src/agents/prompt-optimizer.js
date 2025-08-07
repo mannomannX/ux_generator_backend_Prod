@@ -8,10 +8,10 @@
  * Output: Optimized prompt that addresses the identified issue
  */
 
-import { BaseAgent } from './agent-base.js';
-import fs from 'fs/promises';
-import path from 'path';
-import crypto from 'crypto';
+const { BaseAgent } = require('./base-agent.js');
+const fs = require('fs/promises');
+const path = require('path');
+const crypto = require('crypto');
 
 class PromptOptimizerAgent extends BaseAgent {
   constructor(logger, agentHub) {
@@ -450,4 +450,4 @@ Optimiere den Prompt jetzt:`;
   }
 }
 
-export { PromptOptimizerAgent };
+module.exports = { PromptOptimizerAgent };

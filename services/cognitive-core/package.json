@@ -19,6 +19,8 @@
   "dependencies": {
     "@ux-flow/common": "file:../../packages/common",
     "@google/generative-ai": "^0.24.1",
+    "@anthropic-ai/sdk": "^0.24.3",
+    "openai": "^4.52.7",
     "express": "^4.19.2",
     "cors": "^2.8.5",
     "helmet": "^7.1.0",

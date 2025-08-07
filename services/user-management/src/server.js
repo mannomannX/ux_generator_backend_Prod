@@ -6,7 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
-import { Logger, EventEmitter, MongoClient, RedisClient, HealthCheck } from '@ux-flow/common';
+import { Logger, EventEmitter, MongoClient, RedisClient, HealthCheck, IndexManager } from '@ux-flow/common';
 import { UserManager } from './services/user-manager.js';
 import { WorkspaceManager } from './services/workspace-manager.js';
 import { EventHandlers } from './events/event-handlers.js';
@@ -207,38 +207,18 @@ class UserManagementService {
 
   async initializeDatabase() {
     try {
-      const db = this.mongoClient.getDb();
+      // Initialize comprehensive database indexes using IndexManager
+      const indexManager = new IndexManager(this.mongoClient, this.logger);
       
-      // Create indexes for performance
-      await Promise.all([
-        // Users collection indexes
-        db.collection('users').createIndex({ email: 1 }, { unique: true }),
-        db.collection('users').createIndex({ workspaceId: 1 }),
-        db.collection('users').createIndex({ status: 1 }),
-        db.collection('users').createIndex({ role: 1 }),
-        
-        // Workspaces collection indexes
-        db.collection('workspaces').createIndex({ ownerId: 1 }),
-        db.collection('workspaces').createIndex({ 'members.userId': 1 }),
-        db.collection('workspaces').createIndex({ status: 1 }),
-        
-        // User sessions collection indexes
-        db.collection('user_sessions').createIndex({ userId: 1 }),
-        db.collection('user_sessions').createIndex({ token: 1 }, { unique: true }),
-        db.collection('user_sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-        
-        // Password reset tokens
-        db.collection('password_reset_tokens').createIndex({ token: 1 }, { unique: true }),
-        db.collection('password_reset_tokens').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-        
-        // Email verification tokens
-        db.collection('email_verification_tokens').createIndex({ token: 1 }, { unique: true }),
-        db.collection('email_verification_tokens').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-      ]);
-
-      this.logger.info('Database indexes created successfully');
+      // Create service-specific indexes
+      await indexManager.createServiceIndexes('user-management');
+      
+      // Also create common indexes that this service might use
+      await indexManager.createServiceIndexes('common');
+      
+      this.logger.info('User Management Service database indexes initialized successfully');
     } catch (error) {
-      this.logger.error('Failed to create database indexes', error);
+      this.logger.error('Failed to initialize database indexes', error);
       throw error;
     }
   }

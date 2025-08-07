@@ -2,13 +2,20 @@
 // SERVICES/USER-MANAGEMENT/src/services/user-manager.js
 // ==========================================
 import bcrypt from 'bcrypt';
-import { MongoClient, JWTUtils, Validators } from '@ux-flow/common';
+import { MongoClient, JWTUtils, Validators, CacheManager } from '@ux-flow/common';
 
 class UserManager {
   constructor(logger, mongoClient, redisClient) {
     this.logger = logger;
     this.mongoClient = mongoClient;
     this.redisClient = redisClient;
+    
+    // Initialize enhanced cache manager
+    this.cacheManager = new CacheManager(redisClient, logger, {
+      keyPrefix: 'uxflow:users',
+      defaultTtl: 300, // 5 minutes
+      enableMetrics: true,
+    });
     
     // User cache TTL (5 minutes)
     this.userCacheTTL = 300;
@@ -91,8 +98,8 @@ class UserManager {
       const normalizedEmail = email.toLowerCase().trim();
       
       // Try cache first
-      const cacheKey = `user:email:${normalizedEmail}`;
-      const cachedUser = await this.getCachedData(cacheKey);
+      const cacheKey = `email:${normalizedEmail}`;
+      const cachedUser = await this.cacheManager.get(cacheKey, 'USER_DATA');
       if (cachedUser) {
         return cachedUser;
       }
@@ -126,8 +133,8 @@ class UserManager {
       };
 
       // Cache the user
-      await this.cacheUser(formattedUser.id, formattedUser);
-      await this.setCachedData(cacheKey, formattedUser, this.userCacheTTL);
+      await this.cacheManager.set(formattedUser.id, formattedUser, this.userCacheTTL, 'USER_DATA');
+      await this.cacheManager.set(cacheKey, formattedUser, this.userCacheTTL, 'USER_DATA');
 
       return formattedUser;
 
@@ -144,7 +151,7 @@ class UserManager {
       }
 
       // Try cache first
-      const cachedUser = await this.getCachedUser(userId);
+      const cachedUser = await this.cacheManager.get(userId, 'USER_DATA');
       if (cachedUser) {
         return cachedUser;
       }
@@ -178,7 +185,7 @@ class UserManager {
       };
 
       // Cache the user
-      await this.cacheUser(userId, formattedUser);
+      await this.cacheManager.set(userId, formattedUser, this.userCacheTTL, 'USER_DATA');
 
       return formattedUser;
 

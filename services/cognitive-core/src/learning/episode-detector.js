@@ -9,7 +9,7 @@
  * - User provides feedback that indicates the AI response needs improvement
  */
 
-import { EventEmitter } from 'events';
+const { EventEmitter } = require('events');
 
 class EpisodeDetector extends EventEmitter {
   constructor(logger, mongoClient) {
@@ -404,4 +404,4 @@ class EpisodeDetector extends EventEmitter {
   }
 }
 
-export { EpisodeDetector };
+module.exports = { EpisodeDetector };

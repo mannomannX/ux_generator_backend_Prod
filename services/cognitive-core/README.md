@@ -61,10 +61,11 @@ The Cognitive Core is the intelligence center of the UX-Flow-Engine, orchestrati
 
 | Agent | File | Purpose | Activation |
 |-------|------|---------|------------|
-| **Classifier** | `agents/classifier.js` | Intent & sentiment analysis | Message intake |
+| **Classifier** | `agents/classifier.js` | Intent & sentiment analysis (detects corrective feedback) | Message intake |
 | **UX Expert** | `agents/ux-expert.js` | Design best practices | UX questions |
 | **Visual Interpreter** | `agents/visual-interpreter.js` | Process images/sketches | Visual inputs |
-| **Analyst** | `agents/analyst.js` | System performance analysis | Monitoring |
+| **Analyst** | `agents/analyst.js` | System analysis & learning episode diagnosis | Monitoring & Learning |
+| **Prompt Optimizer** | `agents/prompt-optimizer.js` | Generate optimized prompts from analysis | Learning system |
 
 ## 🚀 Getting Started
 
@@ -182,12 +183,33 @@ cognitive-core/
 │   │   ├── agent-base.js    # Base class for all agents
 │   │   ├── manager.js       # Task delegation
 │   │   ├── planner.js       # Planning agent
+│   │   ├── prompt-optimizer.js # Prompt optimization agent
 │   │   └── ...             
 │   │
 │   ├── orchestrator/        # Agent coordination
 │   │   ├── agent-orchestrator.js
 │   │   ├── conversation-flow.js
 │   │   └── state-manager.js
+│   │
+│   ├── learning/            # Self-optimizing prompt system
+│   │   ├── episode-detector.js        # Detect learning opportunities
+│   │   ├── problem-database.js        # Store improvement suggestions
+│   │   ├── learning-system-coordinator.js # Orchestrate learning cycle
+│   │   └── prompt-implementation-workflow.js # Safe deployment
+│   │
+│   ├── admin/               # Admin interfaces
+│   │   ├── model-testing-interface.js # Test AI models
+│   │   └── prompt-suggestion-admin.js # Review prompt improvements
+│   │
+│   ├── scaling/            # AI scaling infrastructure
+│   │   ├── index.js        # Central coordinator
+│   │   ├── ai-queue-manager.js       # Priority queue management
+│   │   ├── provider-pool-manager.js  # Multi-provider pooling
+│   │   ├── semantic-cache.js         # Intelligent caching
+│   │   └── provider-quality-tracker.js # Quality monitoring
+│   │
+│   ├── analytics/          # Privacy-compliant analytics
+│   │   └── gdpr-analytics.js
 │   │
 │   ├── security/            # Security layer
 │   │   └── ai-security-manager.js
@@ -202,6 +224,10 @@ cognitive-core/
 │   │   └── ...
 │   │
 │   ├── config/             # Configuration
+│   │   ├── index.js
+│   │   ├── agent-model-config.js    # Manual model configuration
+│   │   └── agent-provider-mapping.js # Agent-to-provider mapping
+│   │
 │   └── server.js           # Express server
 │
 ├── tests/                  # Test suites
@@ -733,6 +759,14 @@ curl -H "Authorization: Bearer $GOOGLE_API_KEY" \
 | `ENABLE_VISION_AGENT` | ❌ | `true` | Enable visual interpretation | `false` |
 | `ENABLE_CONVERSATION_PERSISTENCE` | ❌ | `true` | Store conversation history | `false` |
 | `ENABLE_PERFORMANCE_ANALYTICS` | ❌ | `false` | Detailed agent metrics | `true` |
+| **Learning System Configuration** |||||
+| `ENABLE_LEARNING_SYSTEM` | ❌ | `false` | Enable self-optimizing prompts | `true` |
+| `ENABLE_LEARNING` | ❌ | `false` | Enable learning episode detection | `true` |
+| `AUTO_ANALYZE_EPISODES` | ❌ | `true` | Auto-analyze learning episodes | `false` |
+| `AUTO_OPTIMIZE_PROMPTS` | ❌ | `true` | Auto-generate optimized prompts | `false` |
+| `ENABLE_PROMPT_ADMIN` | ❌ | `false` | Enable admin review interface | `true` |
+| `PROMPT_ADMIN_SECRET` | ❌ | - | Admin interface secret key | `secure_key` |
+| `REQUIRE_GIT_COMMIT` | ❌ | `true` | Require Git commits for changes | `false` |
 
 ### **Secrets (Managed via Secret Manager)**
 | Secret Name | Purpose | Rotation | Access Level |
@@ -1103,6 +1137,16 @@ docker-compose logs -f cognitive-core | grep "provider\|health"
 ---
 
 ## 📝 **Changelog**
+
+### **Version 2.1.0** (2024-02-02) - ✅ SELF-OPTIMIZING SYSTEM
+- **✅ Self-optimizing prompt system** that learns from user corrections
+- **✅ Learning episode detection** for corrective feedback capture
+- **✅ Enhanced Analyst Agent** for problem diagnosis from learning episodes
+- **✅ Problem database** for tracking improvement suggestions
+- **✅ Prompt Optimizer Agent** for generating improved prompts
+- **✅ Secure implementation workflow** with Git integration and rollback
+- **✅ Admin interface** for human oversight and approval
+- **✅ GDPR-compliant analytics** with full anonymization
 
 ### **Version 2.0.0** (2024-02-01) - ✅ PRODUCTION READY
 - **✅ Complete production implementation** with multi-provider AI system

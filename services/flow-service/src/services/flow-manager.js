@@ -1,7 +1,7 @@
 // ==========================================
 // SERVICES/FLOW-SERVICE/src/services/flow-manager.js
 // ==========================================
-import { MongoClient, EventTypes } from '@ux-flow/common';
+import { MongoClient, EventTypes, CacheManager } from '@ux-flow/common';
 
 class FlowManager {
   constructor(logger, mongoClient, redisClient, validationService, versioningService) {
@@ -10,6 +10,13 @@ class FlowManager {
     this.redisClient = redisClient;
     this.validationService = validationService;
     this.versioningService = versioningService;
+    
+    // Initialize enhanced cache manager
+    this.cacheManager = new CacheManager(redisClient, logger, {
+      keyPrefix: 'uxflow:flows',
+      defaultTtl: 300, // 5 minutes
+      enableMetrics: true,
+    });
 
     // Flow templates
     this.templates = {
@@ -170,7 +177,8 @@ class FlowManager {
         `Applied ${transactions.length} transaction(s)`
       );
 
-      // Update cache
+          // Invalidate and update cache
+      await this.invalidateFlowCache(flowId, projectId, updatedFlow.metadata.workspaceId);
       await this.cacheFlow(flowId, updatedFlow);
 
       this.logger.info('Flow updated', {
@@ -350,8 +358,8 @@ class FlowManager {
         throw new Error('Flow not found');
       }
 
-      // Remove from cache
-      await this.removeCachedFlow(flowId);
+      // Invalidate cache
+      await this.invalidateFlowCache(flowId, projectId, null);
 
       this.logger.info('Flow deleted', { flowId, deletedBy: userId });
 
@@ -361,34 +369,69 @@ class FlowManager {
     }
   }
 
-  // Cache management
-  async cacheFlow(flowId, flow) {
-    try {
-      await this.redisClient.set(
-        `flow:${flowId}`,
-        flow,
-        300 // 5 minutes TTL
-      );
-    } catch (error) {
-      this.logger.warn('Failed to cache flow', error, { flowId });
+  // Enhanced Cache management using CacheManager
+  async cacheFlow(flowId, flow, ttl = null) {
+    // Cache the complete flow data
+    await this.cacheManager.set(flowId, flow, ttl, 'FLOWS');
+    
+    // Cache flow metadata for quick lookups and list operations
+    const metadata = {
+      id: flowId,
+      name: flow.metadata?.flowName,
+      projectId: flow.metadata?.projectId,
+      workspaceId: flow.metadata?.workspaceId,
+      version: flow.metadata?.version,
+      updatedAt: flow.metadata?.updatedAt,
+      nodeCount: flow.nodes?.length || 0,
+      edgeCount: flow.edges?.length || 0,
+    };
+    
+    await this.cacheManager.set(`meta:${flowId}`, metadata, ttl, 'FLOWS');
+    
+    // Cache project and workspace flow lists
+    if (flow.metadata?.projectId) {
+      await this.invalidateProjectFlowsList(flow.metadata.projectId);
+    }
+    if (flow.metadata?.workspaceId) {
+      await this.invalidateWorkspaceFlowsList(flow.metadata.workspaceId);
     }
   }
 
   async getCachedFlow(flowId) {
-    try {
-      return await this.redisClient.get(`flow:${flowId}`);
-    } catch (error) {
-      this.logger.warn('Failed to get cached flow', error, { flowId });
-      return null;
-    }
+    return await this.cacheManager.get(flowId, 'FLOWS');
+  }
+
+  async getCachedFlowMetadata(flowId) {
+    return await this.cacheManager.get(`meta:${flowId}`, 'FLOWS');
   }
 
   async removeCachedFlow(flowId) {
-    try {
-      await this.redisClient.del(`flow:${flowId}`);
-    } catch (error) {
-      this.logger.warn('Failed to remove cached flow', error, { flowId });
+    await this.cacheManager.del(flowId, 'FLOWS');
+    await this.cacheManager.del(`meta:${flowId}`, 'FLOWS');
+  }
+
+  async invalidateFlowCache(flowId, projectId, workspaceId) {
+    // Remove specific flow caches
+    await this.removeCachedFlow(flowId);
+    
+    // Invalidate related caches
+    if (projectId) {
+      await this.invalidateProjectFlowsList(projectId);
     }
+    if (workspaceId) {
+      await this.invalidateWorkspaceFlowsList(workspaceId);
+    }
+    
+    // Invalidate any API response caches that might contain this flow
+    await this.cacheManager.invalidateByPattern('*', 'API_RESPONSES');
+  }
+
+  async invalidateProjectFlowsList(projectId) {
+    await this.cacheManager.invalidateByPattern(`project:${projectId}:*`, 'FLOWS');
+  }
+
+  async invalidateWorkspaceFlowsList(workspaceId) {
+    await this.cacheManager.invalidateByPattern(`workspace:${workspaceId}:*`, 'FLOWS');
   }
 
   // Utility methods
@@ -396,6 +439,393 @@ class FlowManager {
     const parts = version.split('.').map(Number);
     parts[2]++; // Increment patch version
     return parts.join('.');
+  }
+
+  async listFlows(options = {}) {
+    try {
+      const {
+        projectId,
+        workspaceId,
+        userId,
+        page = 1,
+        limit = 20,
+        sortBy = 'updatedAt',
+        sortOrder = 'desc',
+        filter = {},
+        search,
+      } = options;
+
+      // Create cache key based on query parameters
+      const cacheKey = `list:${JSON.stringify({
+        projectId,
+        workspaceId,
+        userId,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+        filter,
+        search,
+      })}`;
+      
+      // Try to get from cache first
+      const cached = await this.cacheManager.get(cacheKey, 'FLOWS');
+      if (cached) {
+        this.logger.debug('Flows list retrieved from cache', { cacheKey });
+        return cached;
+      }
+
+      const db = this.mongoClient.getDb();
+      const flowsCollection = db.collection('flows');
+      
+      // Build query
+      const query = { 'metadata.status': { $ne: 'deleted' } };
+      
+      if (projectId) query['metadata.projectId'] = projectId;
+      if (workspaceId) query['metadata.workspaceId'] = workspaceId;
+      if (userId) query['metadata.createdBy'] = userId;
+      
+      // Apply additional filters
+      if (filter.template) query['metadata.template'] = filter.template;
+      if (filter.createdAfter) query['metadata.createdAt'] = { $gte: new Date(filter.createdAfter) };
+      if (filter.createdBefore) {
+        query['metadata.createdAt'] = { 
+          ...query['metadata.createdAt'],
+          $lte: new Date(filter.createdBefore),
+        };
+      }
+      
+      // Search functionality
+      if (search) {
+        query.$or = [
+          { 'metadata.flowName': { $regex: search, $options: 'i' } },
+          { 'metadata.description': { $regex: search, $options: 'i' } },
+        ];
+      }
+
+      // Calculate pagination
+      const skip = (page - 1) * limit;
+      const sortOptions = { [`metadata.${sortBy}`]: sortOrder === 'desc' ? -1 : 1 };
+      
+      // Execute query with pagination
+      const [flows, totalCount] = await Promise.all([
+        flowsCollection
+          .find(query)
+          .sort(sortOptions)
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
+        flowsCollection.countDocuments(query),
+      ]);
+
+      // Format results
+      const formattedFlows = flows.map(flow => ({
+        id: flow._id.toString(),
+        name: flow.metadata.flowName,
+        description: flow.metadata.description,
+        version: flow.metadata.version,
+        projectId: flow.metadata.projectId,
+        workspaceId: flow.metadata.workspaceId,
+        createdBy: flow.metadata.createdBy,
+        createdAt: flow.metadata.createdAt,
+        updatedAt: flow.metadata.updatedAt,
+        nodeCount: flow.nodes?.length || 0,
+        edgeCount: flow.edges?.length || 0,
+      }));
+
+      const totalPages = Math.ceil(totalCount / limit);
+      const hasNextPage = page < totalPages;
+      const hasPrevPage = page > 1;
+
+      const result = {
+        flows: formattedFlows,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          limit,
+          hasNextPage,
+          hasPrevPage,
+        },
+        filters: {
+          projectId,
+          workspaceId,
+          search,
+          sortBy,
+          sortOrder,
+        },
+      };
+
+      // Cache the query result for future requests
+      await this.cacheManager.set(cacheKey, result, null, 'FLOWS');
+
+      this.logger.debug('Flows listed and cached', {
+        totalCount,
+        page,
+        limit,
+        resultCount: flows.length,
+        projectId,
+        workspaceId,
+        cacheKey,
+      });
+
+      return result;
+
+    } catch (error) {
+      this.logger.error('Failed to list flows', error, options);
+      throw error;
+    }
+  }
+
+  async getFlowStatistics(options = {}) {
+    try {
+      const { projectId, workspaceId, userId } = options;
+      
+      // Create cache key for statistics
+      const cacheKey = `stats:${JSON.stringify({ projectId, workspaceId, userId })}`;
+      
+      // Try to get from cache first
+      const cached = await this.cacheManager.get(cacheKey, 'FLOWS');
+      if (cached) {
+        this.logger.debug('Flow statistics retrieved from cache', { cacheKey });
+        return cached;
+      }
+      
+      const db = this.mongoClient.getDb();
+      const flowsCollection = db.collection('flows');
+      
+      // Build base query
+      const baseQuery = { 'metadata.status': { $ne: 'deleted' } };
+      if (projectId) baseQuery['metadata.projectId'] = projectId;
+      if (workspaceId) baseQuery['metadata.workspaceId'] = workspaceId;
+      if (userId) baseQuery['metadata.createdBy'] = userId;
+
+      // Aggregate statistics
+      const pipeline = [
+        { $match: baseQuery },
+        {
+          $group: {
+            _id: null,
+            totalFlows: { $sum: 1 },
+            totalNodes: { $sum: { $size: '$nodes' } },
+            totalEdges: { $sum: { $size: '$edges' } },
+            avgNodes: { $avg: { $size: '$nodes' } },
+            avgEdges: { $avg: { $size: '$edges' } },
+            oldestFlow: { $min: '$metadata.createdAt' },
+            newestFlow: { $max: '$metadata.createdAt' },
+            lastModified: { $max: '$metadata.updatedAt' },
+          },
+        },
+      ];
+      
+      const [stats] = await flowsCollection.aggregate(pipeline).toArray();
+      
+      // Get node type distribution
+      const nodeTypesPipeline = [
+        { $match: baseQuery },
+        { $unwind: '$nodes' },
+        {
+          $group: {
+            _id: '$nodes.type',
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { count: -1 } },
+      ];
+      
+      const nodeTypes = await flowsCollection.aggregate(nodeTypesPipeline).toArray();
+      
+      // Get recent activity (flows created/updated in last 7 days)
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const recentActivityQuery = {
+        ...baseQuery,
+        'metadata.updatedAt': { $gte: weekAgo },
+      };
+      
+      const recentActivity = await flowsCollection.countDocuments(recentActivityQuery);
+      
+      const result = {
+        overview: {
+          totalFlows: stats?.totalFlows || 0,
+          totalNodes: stats?.totalNodes || 0,
+          totalEdges: stats?.totalEdges || 0,
+          averageNodes: Math.round((stats?.avgNodes || 0) * 10) / 10,
+          averageEdges: Math.round((stats?.avgEdges || 0) * 10) / 10,
+          recentActivity,
+        },
+        nodeTypes: nodeTypes.reduce((acc, item) => {
+          acc[item._id] = item.count;
+          return acc;
+        }, {}),
+        timeline: {
+          oldestFlow: stats?.oldestFlow,
+          newestFlow: stats?.newestFlow,
+          lastModified: stats?.lastModified,
+        },
+        filters: { projectId, workspaceId, userId },
+      };
+
+      // Cache statistics result (shorter TTL since stats change more frequently)
+      await this.cacheManager.set(cacheKey, result, 180, 'FLOWS'); // 3 minutes cache
+
+      this.logger.debug('Flow statistics calculated and cached', {
+        ...result.overview,
+        cacheKey,
+      });
+      
+      return result;
+
+    } catch (error) {
+      this.logger.error('Failed to get flow statistics', error, options);
+      throw error;
+    }
+  }
+
+  async duplicateFlow(flowId, options = {}) {
+    try {
+      const { projectId, workspaceId, userId, name } = options;
+      
+      if (!userId) {
+        throw new Error('userId is required for flow duplication');
+      }
+      
+      // Get original flow
+      const originalFlow = await this.getFlow(flowId);
+      
+      // Create new flow data
+      const duplicatedFlowData = {
+        ...originalFlow,
+        metadata: {
+          ...originalFlow.metadata,
+          flowName: name || `${originalFlow.metadata.flowName} (Copy)`,
+          projectId: projectId || originalFlow.metadata.projectId,
+          workspaceId: workspaceId || originalFlow.metadata.workspaceId,
+          createdBy: userId,
+          lastModifiedBy: userId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: '1.0.0',
+          duplicatedFrom: flowId,
+        },
+        _id: undefined, // Remove original ID
+        id: undefined,
+      };
+      
+      // Store duplicated flow
+      const db = this.mongoClient.getDb();
+      const flowsCollection = db.collection('flows');
+      const result = await flowsCollection.insertOne(duplicatedFlowData);
+      const newFlowId = result.insertedId.toString();
+      
+      // Create initial version for duplicated flow
+      await this.versioningService.createVersion(
+        newFlowId,
+        duplicatedFlowData,
+        userId,
+        `Duplicated from flow ${flowId}`
+      );
+      
+      // Cache the duplicated flow
+      await this.cacheFlow(newFlowId, duplicatedFlowData);
+      
+      this.logger.info('Flow duplicated', {
+        originalFlowId: flowId,
+        newFlowId,
+        duplicatedBy: userId,
+      });
+      
+      return {
+        flowId: newFlowId,
+        flow: {
+          ...duplicatedFlowData,
+          id: newFlowId,
+          _id: undefined,
+        },
+      };
+      
+    } catch (error) {
+      this.logger.error('Failed to duplicate flow', error, { flowId, options });
+      throw error;
+    }
+  }
+
+  async createDatabaseIndexes() {
+    try {
+      const db = this.mongoClient.getDb();
+      const flowsCollection = db.collection('flows');
+
+      // Create compound indexes for common queries
+      const indexes = [
+        // Project and workspace queries
+        { key: { 'metadata.projectId': 1, 'metadata.workspaceId': 1, 'metadata.status': 1 }, name: 'project_workspace_status' },
+        
+        // User queries
+        { key: { 'metadata.createdBy': 1, 'metadata.status': 1 }, name: 'created_by_status' },
+        
+        // Sorting and filtering
+        { key: { 'metadata.updatedAt': -1, 'metadata.status': 1 }, name: 'updated_at_status' },
+        { key: { 'metadata.createdAt': -1, 'metadata.status': 1 }, name: 'created_at_status' },
+        
+        // Search optimization
+        { key: { 'metadata.flowName': 'text', 'metadata.description': 'text' }, name: 'search_text' },
+        
+        // Template and version queries
+        { key: { 'metadata.template': 1, 'metadata.status': 1 }, name: 'template_status' },
+        { key: { 'metadata.version': 1 }, name: 'version' },
+      ];
+
+      for (const index of indexes) {
+        try {
+          await flowsCollection.createIndex(index.key, { name: index.name, background: true });
+          this.logger.info('Database index created', { collection: 'flows', index: index.name });
+        } catch (error) {
+          if (!error.message.includes('already exists')) {
+            this.logger.warn('Failed to create database index', error, { index: index.name });
+          }
+        }
+      }
+
+      this.logger.info('Flow service database indexes initialized');
+      
+    } catch (error) {
+      this.logger.error('Failed to create database indexes', error);
+      throw error;
+    }
+  }
+
+  async healthCheck() {
+    try {
+      // Test MongoDB connection
+      const db = this.mongoClient.getDb();
+      await db.admin().ping();
+      
+      // Test Redis connection
+      await this.redisClient.ping();
+      
+      // Get basic stats
+      const flowsCollection = db.collection('flows');
+      const flowCount = await flowsCollection.countDocuments({ 'metadata.status': { $ne: 'deleted' } });
+      
+      return {
+        status: 'healthy',
+        connections: {
+          mongodb: 'connected',
+          redis: 'connected',
+        },
+        stats: {
+          totalFlows: flowCount,
+          cacheStatus: 'active',
+        },
+        timestamp: new Date(),
+      };
+      
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        error: error.message,
+        timestamp: new Date(),
+      };
+    }
   }
 
   // Flow templates

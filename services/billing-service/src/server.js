@@ -6,7 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
-import { Logger, EventEmitter, MongoClient, RedisClient, HealthCheck } from '@ux-flow/common';
+import { Logger, EventEmitter, MongoClient, RedisClient, HealthCheck, IndexManager } from '@ux-flow/common';
 import { StripeService } from './services/stripe-service.js';
 import { BillingManager } from './services/billing-manager.js';
 import { CreditManager } from './services/credit-manager.js';
@@ -239,44 +239,18 @@ class BillingService {
 
   async initializeDatabase() {
     try {
-      const db = this.mongoClient.getDb();
+      // Initialize comprehensive database indexes using IndexManager
+      const indexManager = new IndexManager(this.mongoClient, this.logger);
       
-      // Create indexes for performance
-      await Promise.all([
-        // Billing collection indexes
-        db.collection('billing').createIndex({ workspaceId: 1 }),
-        db.collection('billing').createIndex({ stripeCustomerId: 1 }),
-        db.collection('billing').createIndex({ status: 1 }),
-        
-        // Subscriptions collection indexes
-        db.collection('subscriptions').createIndex({ workspaceId: 1 }),
-        db.collection('subscriptions').createIndex({ stripeSubscriptionId: 1 }),
-        db.collection('subscriptions').createIndex({ status: 1 }),
-        db.collection('subscriptions').createIndex({ endDate: 1 }),
-        
-        // Credits collection indexes
-        db.collection('credits').createIndex({ workspaceId: 1 }),
-        db.collection('credits').createIndex({ userId: 1 }),
-        db.collection('credits').createIndex({ expiresAt: 1 }),
-        
-        // Transactions collection indexes
-        db.collection('credit_transactions').createIndex({ workspaceId: 1 }),
-        db.collection('credit_transactions').createIndex({ userId: 1 }),
-        db.collection('credit_transactions').createIndex({ createdAt: -1 }),
-        
-        // Payment methods collection indexes
-        db.collection('payment_methods').createIndex({ workspaceId: 1 }),
-        db.collection('payment_methods').createIndex({ stripePaymentMethodId: 1 }),
-        
-        // Invoices collection indexes
-        db.collection('invoices').createIndex({ workspaceId: 1 }),
-        db.collection('invoices').createIndex({ stripeInvoiceId: 1 }),
-        db.collection('invoices').createIndex({ createdAt: -1 }),
-      ]);
-
-      this.logger.info('Database indexes created successfully');
+      // Create service-specific indexes
+      await indexManager.createServiceIndexes('billing-service');
+      
+      // Also create common indexes that this service might use
+      await indexManager.createServiceIndexes('common');
+      
+      this.logger.info('Billing Service database indexes initialized successfully');
     } catch (error) {
-      this.logger.error('Failed to create database indexes', error);
+      this.logger.error('Failed to initialize database indexes', error);
       throw error;
     }
   }

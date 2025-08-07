@@ -5,10 +5,12 @@
 import { GoogleGeminiIntegration } from '../integrations/google-gemini.js';
 import { OpenAIIntegration } from '../integrations/openai.js';
 import { ClaudeIntegration } from '../integrations/claude.js';
+import { AIProviderFactory } from '../providers/ai-provider-factory.js';
+import { AIRequestQueue } from './ai-request-queue.js';
 
 /**
  * AIProviderManager manages multiple AI providers with failover, load balancing,
- * and intelligent routing based on task requirements
+ * and intelligent routing based on task requirements. Now includes request queue management.
  */
 class AIProviderManager {
   constructor(logger, config = {}) {
@@ -16,8 +18,15 @@ class AIProviderManager {
     this.config = {
       primaryProvider: config.primaryProvider || 'google-gemini',
       enableFailover: config.enableFailover !== false,
-      enableLoadBalancing: config.enableLoadBalancing || false,
-      providers: config.providers || {}
+      enableLoadBalancing: config.enableLoadBalancing !== false,
+      enableRequestQueue: config.enableRequestQueue !== false,
+      providers: config.providers || {},
+      queue: {
+        maxConcurrentRequests: config.maxConcurrentRequests || 50,
+        maxQueueSize: config.maxQueueSize || 1000,
+        loadBalancingStrategy: config.loadBalancingStrategy || 'least_connections',
+        ...config.queue,
+      },
     };
 
     // Initialize providers
@@ -25,7 +34,12 @@ class AIProviderManager {
     this.providerHealth = new Map();
     this.providerMetrics = new Map();
     
+    // Initialize AI provider factory and request queue
+    this.aiProviderFactory = null;
+    this.requestQueue = null;
+    
     this.initializeProviders();
+    this.initializeAdvancedFeatures();
     
     // Health check interval
     this.healthCheckInterval = setInterval(() => {
@@ -35,7 +49,9 @@ class AIProviderManager {
     this.logger.info('AI Provider Manager initialized', {
       primaryProvider: this.config.primaryProvider,
       availableProviders: Array.from(this.providers.keys()),
-      enableFailover: this.config.enableFailover
+      enableFailover: this.config.enableFailover,
+      enableLoadBalancing: this.config.enableLoadBalancing,
+      enableRequestQueue: this.config.enableRequestQueue,
     });
   }
 
@@ -83,6 +99,119 @@ class AIProviderManager {
     if (this.providers.size === 0) {
       throw new Error('No AI providers available - check API keys and configuration');
     }
+  }
+
+  /**
+   * Initialize advanced features (AI Factory and Request Queue)
+   */
+  async initializeAdvancedFeatures() {
+    try {
+      // Initialize AI Provider Factory
+      if (this.config.enableLoadBalancing) {
+        this.aiProviderFactory = new AIProviderFactory({
+          gemini: { apiKeys: this.config.providers.gemini?.apiKeys || [] },
+          openai: { apiKeys: this.config.providers.openai?.apiKeys || [] },
+          claude: { apiKeys: this.config.providers.claude?.apiKeys || [] },
+          llama: { 
+            endpoints: this.config.providers.llama?.endpoints || [],
+            model: this.config.providers.llama?.model || 'llama2',
+          },
+        }, this.logger);
+        
+        await this.aiProviderFactory.initialize();
+        this.logger.info('AI Provider Factory initialized', {
+          providerCount: this.aiProviderFactory.getProviderCount(),
+        });
+      }
+
+      // Initialize Request Queue
+      if (this.config.enableRequestQueue && this.aiProviderFactory) {
+        this.requestQueue = new AIRequestQueue(
+          this.logger,
+          this.aiProviderFactory,
+          this.config.queue
+        );
+        
+        // Set up event handlers
+        this.requestQueue.on('requestCompleted', (data) => {
+          this.logger.debug('Queued request completed', data);
+        });
+        
+        this.requestQueue.on('requestFailed', (data) => {
+          this.logger.warn('Queued request failed', data);
+        });
+        
+        this.requestQueue.on('metricsUpdated', (metrics) => {
+          this.logger.debug('Queue metrics updated', metrics);
+        });
+        
+        this.logger.info('AI Request Queue initialized', {
+          maxConcurrentRequests: this.config.queue.maxConcurrentRequests,
+          maxQueueSize: this.config.queue.maxQueueSize,
+          strategy: this.config.queue.loadBalancingStrategy,
+        });
+      }
+      
+    } catch (error) {
+      this.logger.error('Failed to initialize advanced features', error);
+    }
+  }
+
+  /**
+   * Generate content using the request queue for high-throughput scenarios
+   */
+  async generateContentQueued(prompt, qualityMode = 'standard', options = {}) {
+    if (!this.requestQueue) {
+      // Fallback to direct generation if queue is not enabled
+      return this.generateContent(prompt, qualityMode, options);
+    }
+
+    const request = {
+      prompt,
+      options: {
+        ...options,
+        model: qualityMode === 'pro' ? 'pro' : 'standard',
+        qualityMode,
+      },
+      priority: options.priority || 'normal',
+      providerType: options.providerType,
+      streaming: options.streaming || false,
+      timeout: options.timeout || 60000,
+      maxAttempts: options.maxAttempts || 3,
+    };
+
+    return new Promise((resolve, reject) => {
+      const requestId = this.requestQueue.enqueue(request).catch(reject);
+      
+      const onCompleted = (data) => {
+        if (data.requestId === requestId) {
+          this.requestQueue.removeListener('requestCompleted', onCompleted);
+          this.requestQueue.removeListener('requestFailed', onFailed);
+          resolve({
+            ...data.result,
+            metadata: {
+              ...data.result.metadata,
+              requestId: data.requestId,
+              queuedRequest: true,
+              processingTime: data.processingTime,
+              queueWaitTime: data.queueWaitTime,
+              attempts: data.attempts,
+            },
+          });
+        }
+      };
+      
+      const onFailed = (data) => {
+        if (data.requestId === requestId) {
+          this.requestQueue.removeListener('requestCompleted', onCompleted);
+          this.requestQueue.removeListener('requestFailed', onFailed);
+          reject(new Error(`Queued request failed: ${data.error}`));
+        }
+      };
+      
+      this.requestQueue.on('requestCompleted', onCompleted);
+      this.requestQueue.on('requestFailed', onFailed);
+    });
   }
 
   /**
@@ -338,6 +467,59 @@ class AIProviderManager {
   }
 
   /**
+   * Get request queue status
+   */
+  getQueueStatus() {
+    if (!this.requestQueue) {
+      return {
+        enabled: false,
+        message: 'Request queue is not enabled',
+      };
+    }
+
+    return {
+      enabled: true,
+      ...this.requestQueue.getStatus(),
+    };
+  }
+
+  /**
+   * Get queue metrics
+   */
+  getQueueMetrics() {
+    if (!this.requestQueue) {
+      return {
+        enabled: false,
+        message: 'Request queue is not enabled',
+      };
+    }
+
+    return {
+      enabled: true,
+      ...this.requestQueue.getMetrics(),
+    };
+  }
+
+  /**
+   * Get AI provider factory metrics
+   */
+  getFactoryMetrics() {
+    if (!this.aiProviderFactory) {
+      return {
+        enabled: false,
+        message: 'AI provider factory is not enabled',
+      };
+    }
+
+    return {
+      enabled: true,
+      providerCount: this.aiProviderFactory.getProviderCount(),
+      healthyProviderCount: this.aiProviderFactory.getHealthyProviderCount(),
+      metrics: this.aiProviderFactory.getMetrics(),
+    };
+  }
+
+  /**
    * Get comprehensive statistics for all providers
    */
   getProviderStatistics() {
@@ -347,6 +529,8 @@ class AIProviderManager {
       healthStatus: {},
       metrics: {},
       capabilities: {},
+      queue: this.getQueueStatus(),
+      factory: this.getFactoryMetrics(),
       overall: {
         totalRequests: 0,
         totalSuccesses: 0,
@@ -435,13 +619,20 @@ class AIProviderManager {
       clearInterval(this.healthCheckInterval);
     }
 
+    // Shutdown request queue
+    if (this.requestQueue) {
+      await this.requestQueue.shutdown();
+    }
+
     // Log final statistics
     const stats = this.getProviderStatistics();
     this.logger.info('AI Provider Manager shutdown', {
       totalRequests: stats.overall.totalRequests,
       successRate: stats.overall.totalRequests > 0 ? 
         (stats.overall.totalSuccesses / stats.overall.totalRequests) : 0,
-      averageResponseTime: Math.round(stats.overall.averageResponseTime)
+      averageResponseTime: Math.round(stats.overall.averageResponseTime),
+      queueEnabled: this.config.enableRequestQueue,
+      factoryEnabled: this.config.enableLoadBalancing,
     });
   }
 }

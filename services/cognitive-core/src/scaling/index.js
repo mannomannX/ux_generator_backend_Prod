@@ -20,7 +20,8 @@ const ProviderQualityTracker = require('./provider-quality-tracker');
 const agentProviderMapping = require('../config/agent-provider-mapping');
 
 class AIScalingSystem {
-  constructor(config = {}) {
+  constructor(config = {}, logger = console) {
+    this.logger = logger;
     this.config = {
       enabled: config.enabled !== false,
       queueEnabled: config.queueEnabled !== false,
@@ -46,22 +47,22 @@ class AIScalingSystem {
   }
 
   async initialize() {
-    console.log('🚀 Initializing AI Scaling System...');
+    this.logger.info('🚀 Initializing AI Scaling System...');
 
     // Initialize queue manager
     if (this.config.queueEnabled) {
       this.components.queueManager = new AIQueueManager(this.config.queue);
-      console.log('✅ Queue Manager initialized');
+      this.logger.info('✅ Queue Manager initialized');
     }
 
     // Initialize provider pool
     this.components.providerPool = new ProviderPoolManager(this.config.providers);
-    console.log('✅ Provider Pool initialized');
+    this.logger.info('✅ Provider Pool initialized');
 
     // Initialize semantic cache
     if (this.config.cacheEnabled) {
       this.components.cache = new SemanticCache(this.config.cache);
-      console.log('✅ Semantic Cache initialized');
+      this.logger.info('✅ Semantic Cache initialized');
     }
 
     // Initialize cost optimizer
@@ -70,21 +71,21 @@ class AIScalingSystem {
         dailyBudget: this.config.dailyBudget,
         monthlyBudget: this.config.monthlyBudget
       });
-      console.log('✅ Cost Optimizer initialized');
+      this.logger.info('✅ Cost Optimizer initialized');
     }
 
     // Initialize stream optimizer
     if (this.config.streamingEnabled) {
       this.components.streamOptimizer = new StreamOptimizer(this.config.streaming);
-      console.log('✅ Stream Optimizer initialized');
+      this.logger.info('✅ Stream Optimizer initialized');
     }
 
     // Initialize quality tracker
     this.components.qualityTracker = new ProviderQualityTracker(this.config.quality);
-    console.log('✅ Quality Tracker initialized');
+    this.logger.info('✅ Quality Tracker initialized');
 
     this.attachEventHandlers();
-    console.log('🎯 AI Scaling System ready!');
+    this.logger.info('🎯 AI Scaling System ready!');
   }
 
   attachEventHandlers() {
@@ -104,7 +105,7 @@ class AIScalingSystem {
       });
 
       this.components.costOptimizer.on('mode-changed', (mode) => {
-        console.log(`🔄 Optimization mode changed to: ${mode}`);
+        this.logger.info(`🔄 Optimization mode changed to: ${mode}`);
       });
     }
 
@@ -223,7 +224,7 @@ class AIScalingSystem {
       
       // Use quality recommendation if confidence is high
       if (qualityRecommendation.confidence >= 0.8) {
-        console.log(`Using ${qualityRecommendation.provider} for ${request.agent} based on quality (${qualityRecommendation.confidence})`);
+        this.logger.info(`Using ${qualityRecommendation.provider} for ${request.agent} based on quality (confidence: ${qualityRecommendation.confidence})`);
         return qualityRecommendation.provider;
       }
     }
@@ -322,7 +323,7 @@ class AIScalingSystem {
 
     for (const fallbackProvider of agent.fallback) {
       try {
-        console.log(`Trying fallback provider: ${fallbackProvider}`);
+        this.logger.info(`Trying fallback provider: ${fallbackProvider}`);
         const response = await this.directAPICall(request, fallbackProvider);
         
         return {
@@ -389,7 +390,7 @@ class AIScalingSystem {
   handleBudgetAlert(alert) {
     if (alert.type === 'daily' && alert.usage > 0.9) {
       // Switch to economy mode
-      console.log('Switching to economy mode due to budget constraints');
+      this.logger.info('Switching to economy mode due to budget constraints');
       
       // Route more traffic to local models
       if (this.components.providerPool) {
@@ -478,7 +479,7 @@ class AIScalingSystem {
    * Graceful shutdown
    */
   async shutdown() {
-    console.log('Shutting down AI Scaling System...');
+    this.logger.info('Shutting down AI Scaling System...');
 
     if (this.components.queueManager) {
       await this.components.queueManager.cleanup();
@@ -496,7 +497,7 @@ class AIScalingSystem {
       this.components.costOptimizer.destroy();
     }
 
-    console.log('AI Scaling System shut down complete');
+    this.logger.info('AI Scaling System shut down complete');
   }
 }
 

@@ -121,3 +121,4 @@ class UXFlowEventEmitter extends EventEmitter {
 }
 
 export { UXFlowEventEmitter as EventEmitter };
+export { RedisEventBus, ServiceChannels, InterServiceEvents } from './redis-event-bus.js';

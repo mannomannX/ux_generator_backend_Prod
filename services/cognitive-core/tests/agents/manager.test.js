@@ -1,240 +1,281 @@
 // ==========================================
-// COGNITIVE CORE SERVICE - Manager Agent Tests
+// COGNITIVE CORE - Manager Agent Unit Tests
 // ==========================================
 
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { ManagerAgent } from '../../src/agents/manager.js';
+import { 
+  testTasks, 
+  testAgentResponses, 
+  testContexts,
+  mockServices 
+} from '../fixtures/test-data.js';
 
 describe('ManagerAgent', () => {
-  let agent;
+  let managerAgent;
   let mockContext;
+  let mockAIProvider;
 
   beforeEach(() => {
-    mockContext = global.createMockContext();
-    agent = new ManagerAgent(mockContext);
+    // Setup mock AI provider
+    mockAIProvider = {
+      generateResponse: jest.fn(),
+      generateStreamResponse: jest.fn(),
+      isAvailable: jest.fn().mockReturnValue(true),
+      getModel: jest.fn().mockReturnValue('gpt-4')
+    };
+
+    // Setup mock context
+    mockContext = {
+      logger: mockServices.logger,
+      config: {
+        defaultModel: 'gpt-4',
+        temperature: 0.7,
+        maxTokens: 2000
+      },
+      aiProvider: mockAIProvider
+    };
+
+    managerAgent = new ManagerAgent(mockContext);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   describe('executeTask', () => {
-    it('should process user message with context', async () => {
-      const userMessage = 'Erstelle einen Login-Screen';
-      const context = {
-        context: '--- Langzeit-Fakten ---\nKeine verfügbar\n\n--- Mittelfristige Zusammenfassung ---\nErste Konversation\n\n--- Kurzzeitgedächtnis ---\nNeue Session',
-        qualityMode: 'standard'
-      };
-
-      // Mock successful AI response
-      mockContext.models.standard.generateContent.mockResolvedValue({
-        response: {
-          text: () => JSON.stringify({
-            type: 'planner_task',
-            task: 'Erstelle einen Login-Screen mit Email und Passwort-Feldern',
-            complexity: 'simple'
-          })
-        }
+    it('should successfully delegate a simple task', async () => {
+      const { userMessage, context } = testTasks.simple;
+      
+      // Mock AI response
+      mockAIProvider.generateResponse.mockResolvedValue({
+        content: JSON.stringify(testAgentResponses.manager.success)
       });
 
-      const result = await agent.executeTask(userMessage, context);
+      const result = await managerAgent.executeTask(userMessage, context);
 
-      expect(result.type).toBe('planner_task');
-      expect(result.task).toContain('Login-Screen');
-      expect(result.complexity).toBe('simple');
-      expect(mockContext.logger.logAgentAction).toHaveBeenCalledWith(
-        'manager',
-        'Task analysis completed',
+      expect(result).toMatchObject({
+        type: 'task_delegation',
+        delegatedTo: 'planner',
+        task: expect.stringContaining('login')
+      });
+      
+      expect(mockContext.logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Manager processing task'),
         expect.any(Object)
       );
     });
 
-    it('should return clarification question when task is unclear', async () => {
-      const userMessage = 'Mache etwas';
+    it('should request clarification for ambiguous tasks', async () => {
+      const userMessage = 'Do something with the interface';
       
-      mockContext.models.standard.generateContent.mockResolvedValue({
-        response: {
-          text: () => JSON.stringify({
-            type: 'clarification_question',
-            question: 'Was genau möchten Sie erstellen? Können Sie Ihr Ziel präziser beschreiben?'
-          })
-        }
+      mockAIProvider.generateResponse.mockResolvedValue({
+        content: JSON.stringify(testAgentResponses.manager.clarification)
       });
 
-      const result = await agent.executeTask(userMessage, {});
+      const result = await managerAgent.executeTask(userMessage, testContexts.newProject);
 
-      expect(result.type).toBe('clarification_question');
-      expect(result.question).toContain('präziser');
+      expect(result).toMatchObject({
+        type: 'clarification_needed',
+        question: expect.any(String),
+        options: expect.any(Array)
+      });
     });
 
-    it('should handle improvement suggestions in context', async () => {
-      const userMessage = 'Füge einen Button hinzu';
-      const context = {
-        context: 'Test context',
-        improvementSuggestion: 'Verwende präzisere Beschreibungen für UI-Elemente',
-        qualityMode: 'standard'
-      };
-
-      mockContext.models.standard.generateContent.mockResolvedValue({
-        response: {
-          text: () => JSON.stringify({
-            type: 'planner_task',
-            task: 'Füge einen präzise beschriebenen Button hinzu',
-            complexity: 'simple'
-          })
-        }
+    it('should handle complex tasks by delegating to architect', async () => {
+      const { userMessage, context } = testTasks.complex;
+      
+      mockAIProvider.generateResponse.mockResolvedValue({
+        content: JSON.stringify({
+          type: 'task_delegation',
+          delegatedTo: 'architect',
+          task: userMessage,
+          complexity: 'complex'
+        })
       });
 
-      const result = await agent.executeTask(userMessage, context);
+      const result = await managerAgent.executeTask(userMessage, context);
 
-      expect(result.type).toBe('planner_task');
-      expect(mockContext.models.standard.generateContent).toHaveBeenCalledWith(
-        expect.stringContaining('Verwende präzisere Beschreibungen')
+      expect(result.delegatedTo).toBe('architect');
+      expect(result.complexity).toBe('complex');
+    });
+
+    it('should include project context in task analysis', async () => {
+      const { userMessage } = testTasks.simple;
+      const context = testContexts.existingProject;
+      
+      mockAIProvider.generateResponse.mockResolvedValue({
+        content: JSON.stringify(testAgentResponses.manager.success)
+      });
+
+      await managerAgent.executeTask(userMessage, context);
+
+      // Verify context was passed to AI
+      expect(mockAIProvider.generateResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              role: 'user',
+              content: expect.stringContaining(userMessage)
+            })
+          ])
+        })
       );
     });
 
-    it('should throw error for invalid response format', async () => {
-      const userMessage = 'Test message';
+    it('should handle AI provider errors gracefully', async () => {
+      const { userMessage, context } = testTasks.simple;
       
-      mockContext.models.standard.generateContent.mockResolvedValue({
-        response: {
-          text: () => JSON.stringify({
-            invalidType: 'invalid'
-          })
-        }
-      });
-
-      await expect(agent.executeTask(userMessage, {}))
-        .rejects
-        .toThrow('Manager agent returned invalid response format');
-    });
-
-    it('should handle AI API errors gracefully', async () => {
-      const userMessage = 'Test message';
-      
-      mockContext.models.standard.generateContent.mockRejectedValue(
-        new Error('API quota exceeded')
+      mockAIProvider.generateResponse.mockRejectedValue(
+        new Error('AI service unavailable')
       );
 
-      await expect(agent.executeTask(userMessage, {}))
-        .rejects
-        .toThrow('API quota exceeded');
+      await expect(
+        managerAgent.executeTask(userMessage, context)
+      ).rejects.toThrow('AI service unavailable');
+
+      expect(mockContext.logger.error).toHaveBeenCalled();
     });
-  });
 
-  describe('memory extraction methods', () => {
-    it('should extract long-term memory from context', () => {
-      const fullContext = `
-        --- Langzeit-Fakten ---
-        Nutzer bevorzugt minimales Design
-        Verwendet häufig Login-Flows
-        
-        --- Mittelfristige Zusammenfassung ---
-        Andere Inhalte
-      `;
-
-      const longTerm = agent.extractLongTermMemory(fullContext);
+    it('should parse and validate AI responses', async () => {
+      const { userMessage, context } = testTasks.simple;
       
-      expect(longTerm).toContain('minimales Design');
-      expect(longTerm).toContain('Login-Flows');
-    });
-
-    it('should extract mid-term memory from context', () => {
-      const fullContext = `
-        --- Langzeit-Fakten ---
-        Andere Inhalte
-        
-        --- Mittelfristige Zusammenfassung ---
-        Aktuelles Projekt: E-Commerce App
-        Letzte Änderung: Shopping Cart
-        
-        --- Kurzzeitgedächtnis ---
-        Noch andere Inhalte
-      `;
-
-      const midTerm = agent.extractMidTermMemory(fullContext);
-      
-      expect(midTerm).toContain('E-Commerce App');
-      expect(midTerm).toContain('Shopping Cart');
-    });
-
-    it('should extract short-term memory from context', () => {
-      const fullContext = `
-        --- Langzeit-Fakten ---
-        Andere Inhalte
-        
-        --- Kurzzeitgedächtnis (letzte 5 Nachrichten) ---
-        user: Füge einen Login-Screen hinzu
-        assistant: Hier ist der Plan...
-        user: Das sieht gut aus
-      `;
-
-      const shortTerm = agent.extractShortTermMemory(fullContext);
-      
-      expect(shortTerm).toContain('Login-Screen hinzu');
-      expect(shortTerm).toContain('Das sieht gut aus');
-    });
-
-    it('should handle missing memory sections gracefully', () => {
-      const fullContext = 'No structured memory content';
-
-      expect(agent.extractLongTermMemory(fullContext)).toBe('No long-term memory available');
-      expect(agent.extractMidTermMemory(fullContext)).toBe('No mid-term memory available');
-      expect(agent.extractShortTermMemory(fullContext)).toBe('No short-term memory available');
-    });
-  });
-
-  describe('task description generation', () => {
-    it('should generate meaningful task descriptions', () => {
-      const input = 'Erstelle einen Dashboard-Screen';
-      const context = { qualityMode: 'standard' };
-
-      const description = agent.getTaskDescription(input, context);
-
-      expect(description).toBe('Analyzing user request and determining task approach');
-    });
-  });
-
-  describe('agent lifecycle', () => {
-    it('should emit task started event', async () => {
-      const userMessage = 'Test message';
-      
-      mockContext.models.standard.generateContent.mockResolvedValue({
-        response: {
-          text: () => JSON.stringify({
-            type: 'planner_task',
-            task: 'Test task',
-            complexity: 'simple'
-          })
-        }
+      // Mock invalid JSON response
+      mockAIProvider.generateResponse.mockResolvedValue({
+        content: 'Invalid JSON response'
       });
 
-      await agent.process(userMessage, {});
-
-      expect(mockContext.eventEmitter.emitAgentTaskStarted).toHaveBeenCalledWith(
-        'manager',
-        expect.any(String),
-        'Analyzing user request and determining task approach'
-      );
+      await expect(
+        managerAgent.executeTask(userMessage, context)
+      ).rejects.toThrow();
     });
 
-    it('should emit task completed event on success', async () => {
-      const userMessage = 'Test message';
-      const expectedResult = {
-        type: 'planner_task',
-        task: 'Test task',
-        complexity: 'simple'
+    it('should handle streaming responses when enabled', async () => {
+      const { userMessage, context } = testTasks.simple;
+      const streamContext = { ...context, stream: true };
+      
+      // Mock streaming response
+      const mockStream = {
+        async *[Symbol.asyncIterator]() {
+          yield { content: '{"type":"task_' };
+          yield { content: 'delegation","delegatedTo":"planner"' };
+          yield { content: ',"task":"Create login screen"}' };
+        }
       };
       
-      mockContext.models.standard.generateContent.mockResolvedValue({
-        response: {
-          text: () => JSON.stringify(expectedResult)
-        }
+      mockAIProvider.generateStreamResponse.mockResolvedValue(mockStream);
+
+      const result = await managerAgent.executeTask(userMessage, streamContext);
+
+      expect(result).toMatchObject({
+        type: 'task_delegation',
+        delegatedTo: 'planner'
       });
+    });
+  });
 
-      const result = await agent.process(userMessage, {});
+  describe('analyzeComplexity', () => {
+    it('should correctly identify simple tasks', () => {
+      const task = 'Add a button to the form';
+      const complexity = managerAgent.analyzeComplexity(task);
+      
+      expect(complexity).toBe('simple');
+    });
 
-      expect(result).toEqual(expectedResult);
-      expect(mockContext.eventEmitter.emitAgentTaskCompleted).toHaveBeenCalledWith(
-        'manager',
-        expect.any(String),
-        expectedResult
-      );
+    it('should correctly identify complex tasks', () => {
+      const task = 'Design a complete multi-step checkout flow with payment integration, order review, and confirmation';
+      const complexity = managerAgent.analyzeComplexity(task);
+      
+      expect(complexity).toBe('complex');
+    });
+
+    it('should correctly identify medium complexity tasks', () => {
+      const task = 'Create a user profile page with edit functionality';
+      const complexity = managerAgent.analyzeComplexity(task);
+      
+      expect(complexity).toBe('medium');
+    });
+  });
+
+  describe('determineAgent', () => {
+    it('should select planner for UI creation tasks', () => {
+      const task = 'Create a navigation menu';
+      const agent = managerAgent.determineAgent(task, 'simple');
+      
+      expect(agent).toBe('planner');
+    });
+
+    it('should select architect for complex system design', () => {
+      const task = 'Design the application architecture';
+      const agent = managerAgent.determineAgent(task, 'complex');
+      
+      expect(agent).toBe('architect');
+    });
+
+    it('should select validator for validation tasks', () => {
+      const task = 'Check accessibility compliance';
+      const agent = managerAgent.determineAgent(task, 'simple');
+      
+      expect(agent).toBe('validator');
+    });
+
+    it('should select analyst for analysis tasks', () => {
+      const task = 'Analyze user flow performance';
+      const agent = managerAgent.determineAgent(task, 'medium');
+      
+      expect(agent).toBe('analyst');
+    });
+
+    it('should select ux-expert for UX-specific tasks', () => {
+      const task = 'Improve the user experience of the checkout process';
+      const agent = managerAgent.determineAgent(task, 'medium');
+      
+      expect(agent).toBe('ux-expert');
+    });
+  });
+
+  describe('formatContext', () => {
+    it('should format context with history', () => {
+      const context = testContexts.existingProject;
+      const formatted = managerAgent.formatContext(context);
+      
+      expect(formatted).toContain('Previous conversation');
+      expect(formatted).toContain('Current flow');
+      expect(formatted).toContain('Project type: mobile');
+    });
+
+    it('should handle empty context gracefully', () => {
+      const formatted = managerAgent.formatContext({});
+      
+      expect(formatted).toContain('No previous context');
+    });
+
+    it('should include user preferences when available', () => {
+      const context = testContexts.existingProject;
+      const formatted = managerAgent.formatContext(context);
+      
+      expect(formatted).toContain('theme');
+      expect(formatted).toContain('complexity');
+    });
+  });
+
+  describe('buildPrompt', () => {
+    it('should build a comprehensive prompt', () => {
+      const task = 'Create a dashboard';
+      const context = testContexts.newProject;
+      const prompt = managerAgent.buildPrompt(task, context);
+      
+      expect(prompt).toContain(task);
+      expect(prompt).toContain('Manager Agent');
+      expect(prompt).toContain('Analyze');
+    });
+
+    it('should include quality mode in prompt', () => {
+      const task = 'Create a dashboard';
+      const context = { ...testContexts.newProject, quality: 'pro' };
+      const prompt = managerAgent.buildPrompt(task, context);
+      
+      expect(prompt).toContain('pro');
     });
   });
 });

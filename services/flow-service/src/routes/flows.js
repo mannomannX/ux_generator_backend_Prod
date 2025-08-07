@@ -412,4 +412,126 @@ router.get('/:flowId/stats', async (req, res) => {
   }
 });
 
+// List flows with pagination and filtering
+router.get('/', async (req, res) => {
+  try {
+    const {
+      projectId,
+      workspaceId,
+      page = '1',
+      limit = '20',
+      sortBy = 'updatedAt',
+      sortOrder = 'desc',
+      search,
+      template,
+      createdAfter,
+      createdBefore,
+    } = req.query;
+
+    const userId = req.headers['x-user-id'];
+
+    const options = {
+      projectId,
+      workspaceId,
+      userId: req.query.createdBy || (req.query.myFlows === 'true' ? userId : undefined),
+      page: parseInt(page),
+      limit: Math.min(parseInt(limit), 100), // Cap at 100
+      sortBy,
+      sortOrder,
+      search,
+      filter: {
+        template,
+        createdAfter,
+        createdBefore,
+      },
+    };
+
+    const result = await req.flowManager.listFlows(options);
+
+    res.json({
+      message: 'Flows retrieved successfully',
+      ...result,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to list flows',
+      message: error.message,
+      correlationId: req.correlationId,
+    });
+  }
+});
+
+// Get aggregate statistics
+router.get('/stats/aggregate', async (req, res) => {
+  try {
+    const { projectId, workspaceId } = req.query;
+    const userId = req.headers['x-user-id'];
+
+    const options = {};
+    if (projectId) options.projectId = projectId;
+    if (workspaceId) options.workspaceId = workspaceId;
+    if (req.query.myStats === 'true') options.userId = userId;
+
+    const stats = await req.flowManager.getFlowStatistics(options);
+
+    res.json({
+      message: 'Flow statistics retrieved successfully',
+      ...stats,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get flow statistics',
+      message: error.message,
+      correlationId: req.correlationId,
+    });
+  }
+});
+
+// Duplicate flow
+router.post('/:flowId/duplicate', async (req, res) => {
+  try {
+    const { flowId } = req.params;
+    const { projectId, workspaceId, name } = req.body;
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(400).json({
+        error: 'userId is required',
+        correlationId: req.correlationId,
+      });
+    }
+
+    const result = await req.flowManager.duplicateFlow(flowId, {
+      projectId,
+      workspaceId,
+      userId,
+      name,
+    });
+
+    res.status(201).json({
+      message: 'Flow duplicated successfully',
+      originalFlowId: flowId,
+      newFlowId: result.flowId,
+      flow: result.flow,
+    });
+
+  } catch (error) {
+    if (error.message.includes('not found')) {
+      res.status(404).json({
+        error: 'Original flow not found',
+        flowId: req.params.flowId,
+        correlationId: req.correlationId,
+      });
+    } else {
+      res.status(500).json({
+        error: 'Failed to duplicate flow',
+        message: error.message,
+        correlationId: req.correlationId,
+      });
+    }
+  }
+});
+
 export default router;

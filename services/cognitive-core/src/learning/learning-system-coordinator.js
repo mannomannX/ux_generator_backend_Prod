@@ -13,7 +13,7 @@
  * 6. Implementation Workflow deploys changes safely
  */
 
-import { EventEmitter } from 'events';
+const { EventEmitter } = require('events');
 
 class LearningSystemCoordinator extends EventEmitter {
   constructor(logger, mongoClient, agentHub, eventEmitter) {
@@ -70,11 +70,11 @@ class LearningSystemCoordinator extends EventEmitter {
 
     try {
       // Import and initialize components
-      const { EpisodeDetector } = await import('./episode-detector.js');
-      const { ProblemDatabase } = await import('./problem-database.js');
-      const { PromptSuggestionAdmin } = await import('../admin/prompt-suggestion-admin.js');
-      const { PromptOptimizerAgent } = await import('../agents/prompt-optimizer.js');
-      const { PromptImplementationWorkflow } = await import('./prompt-implementation-workflow.js');
+      const { EpisodeDetector } = require('./episode-detector.js');
+      const { ProblemDatabase } = require('./problem-database.js');
+      const { PromptSuggestionAdmin } = require('../admin/prompt-suggestion-admin.js');
+      const { PromptOptimizerAgent } = require('../agents/prompt-optimizer.js');
+      const { PromptImplementationWorkflow } = require('./prompt-implementation-workflow.js');
 
       // Initialize components
       this.episodeDetector = new EpisodeDetector(this.logger, this.mongoClient);
@@ -528,4 +528,4 @@ class LearningSystemCoordinator extends EventEmitter {
   }
 }
 
-export { LearningSystemCoordinator };
+module.exports = { LearningSystemCoordinator };

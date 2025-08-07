@@ -69,6 +69,9 @@ class FlowService {
       // Setup event listeners
       this.setupEventListeners();
 
+      // Initialize database indexes
+      await this.flowManager.createDatabaseIndexes();
+
       this.logger.info('Flow Service initialized successfully');
     } catch (error) {
       this.logger.error('Failed to initialize Flow Service', error);

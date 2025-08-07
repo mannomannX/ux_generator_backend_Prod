@@ -13,11 +13,11 @@
  * - Human approval checkpoints
  */
 
-import fs from 'fs/promises';
-import path from 'path';
-import crypto from 'crypto';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+const fs = require('fs/promises');
+const path = require('path');
+const crypto = require('crypto');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 
 const execAsync = promisify(exec);
 
@@ -689,4 +689,4 @@ Reason: Implementation failure or manual rollback`;
   }
 }
 
-export { PromptImplementationWorkflow };
+module.exports = { PromptImplementationWorkflow };

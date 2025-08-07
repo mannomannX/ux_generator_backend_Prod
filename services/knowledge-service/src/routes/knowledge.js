@@ -81,6 +81,7 @@ router.get('/stats', async (req, res) => {
     }
 
     res.json({
+      message: 'Knowledge statistics retrieved successfully',
       stats,
       timestamp: new Date().toISOString(),
     });
@@ -88,6 +89,30 @@ router.get('/stats', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: 'Failed to get knowledge statistics',
+      message: error.message,
+      correlationId: req.correlationId,
+    });
+  }
+});
+
+// Get advanced knowledge analytics
+router.get('/stats/advanced', async (req, res) => {
+  try {
+    const { timeRange = '24h', includeDetails = 'false' } = req.query;
+    
+    const advancedStats = await req.knowledgeManager.getAdvancedStats({
+      timeRange,
+      includeDetails: includeDetails === 'true',
+    });
+
+    res.json({
+      message: 'Advanced knowledge analytics retrieved successfully',
+      ...advancedStats,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get advanced knowledge analytics',
       message: error.message,
       correlationId: req.correlationId,
     });

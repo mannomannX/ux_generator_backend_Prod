@@ -1,12 +1,17 @@
 // ==========================================
 // SERVICES/API-GATEWAY/src/websocket/message-handler.js
 // ==========================================
-import { EventTypes } from '@ux-flow/common';
+import { 
+  EventTypes,
+  InterServiceEvents,
+  ServiceChannels
+} from '@ux-flow/common';
 
 class MessageHandler {
-  constructor(logger, eventEmitter, mongoClient, redisClient, roomManager) {
+  constructor(logger, eventEmitter, mongoClient, redisClient, roomManager, eventBus) {
     this.logger = logger;
     this.eventEmitter = eventEmitter;
+    this.eventBus = eventBus; // Redis Event Bus for inter-service communication
     this.mongoClient = mongoClient;
     this.redisClient = redisClient;
     this.roomManager = roomManager;
@@ -98,8 +103,11 @@ class MessageHandler {
       // Store message in conversation history
       await this.storeMessage(projectId, userId, 'user', userMessage);
 
-      // Emit event to Cognitive Core Service
-      this.eventEmitter.emit(EventTypes.USER_MESSAGE_RECEIVED, {
+      // Send event to Cognitive Core Service via Redis Event Bus
+      await this.eventBus.publishToService(
+        'cognitive-core',
+        InterServiceEvents.REQUEST_AI_PROCESSING,
+        {
         userId,
         projectId,
         workspaceId,
@@ -107,6 +115,7 @@ class MessageHandler {
         qualityMode,
         timestamp: new Date().toISOString(),
         clientId: clientInfo.clientId,
+        requestId: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       });
 
       this.logger.info('User message forwarded to Cognitive Core', {
@@ -135,8 +144,11 @@ class MessageHandler {
       approved ? 'Plan approved for execution' : 'Plan rejected'
     );
 
-    // Emit event to Cognitive Core Service
-    this.eventEmitter.emit(EventTypes.USER_PLAN_APPROVED, {
+    // Send to Cognitive Core Service via Redis Event Bus
+    await this.eventBus.publishToService(
+      'cognitive-core',
+      EventTypes.USER_PLAN_APPROVED,
+      {
       userId,
       projectId,
       approved,
@@ -159,8 +171,11 @@ class MessageHandler {
     // Store feedback
     await this.storeMessage(projectId, userId, 'user', `Plan feedback: ${feedback}`);
 
-    // Emit event to Cognitive Core Service
-    this.eventEmitter.emit(EventTypes.USER_PLAN_FEEDBACK, {
+    // Send to Cognitive Core Service via Redis Event Bus
+    await this.eventBus.publishToService(
+      'cognitive-core',
+      EventTypes.USER_PLAN_FEEDBACK,
+      {
       userId,
       projectId,
       feedback,
@@ -178,8 +193,11 @@ class MessageHandler {
   async handleImageUpload(message, clientInfo) {
     const { userId, projectId, imageData, mimeType = 'image/jpeg' } = message;
 
-    // Emit event to Cognitive Core Service for visual interpretation
-    this.eventEmitter.emit(EventTypes.IMAGE_UPLOAD_RECEIVED, {
+    // Send to Cognitive Core Service for visual interpretation via Redis Event Bus
+    await this.eventBus.publishToService(
+      'cognitive-core',
+      EventTypes.IMAGE_UPLOAD_RECEIVED,
+      {
       userId,
       projectId,
       imageData,

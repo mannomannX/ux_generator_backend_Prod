@@ -7,8 +7,8 @@
  * SECURITY: This interface should ONLY be accessible to authorized admins/developers
  */
 
-import express from 'express';
-import crypto from 'crypto';
+const express = require('express');
+const crypto = require('crypto');
 
 class PromptSuggestionAdmin {
   constructor(logger, problemDatabase, eventEmitter) {
@@ -612,4 +612,4 @@ class PromptSuggestionAdmin {
   }
 }
 
-export { PromptSuggestionAdmin };
+module.exports = { PromptSuggestionAdmin };

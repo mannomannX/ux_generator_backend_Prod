@@ -6,10 +6,19 @@
 export { Logger } from './logger/index.js';
 
 // Events
-export { EventEmitter, EventTypes } from './events/index.js';
+export { 
+  EventEmitter, 
+  EventTypes, 
+  RedisEventBus, 
+  ServiceChannels, 
+  InterServiceEvents 
+} from './events/index.js';
 
 // Database
-export { MongoClient, RedisClient, ChromaClient } from './database/index.js';
+export { MongoClient, RedisClient, ChromaClient, IndexManager } from './database/index.js';
+
+// Cache
+export { CacheManager } from './cache/index.js';
 
 // Authentication
 export { 
@@ -79,3 +88,43 @@ export {
   CostOptimizer,
   PerformanceOptimizer
 } from './optimization/index.js';
+
+// Monitoring & Tracing
+export {
+  DistributedTracer,
+  SystemMetrics,
+  PerformanceMonitor,
+  initializeTracer,
+  getTracer,
+  trace,
+  getCurrentSpan,
+  addLog,
+  initializeSystemMetrics,
+  getSystemMetrics,
+  initializePerformanceMonitor,
+  getPerformanceMonitor
+} from './monitoring/index.js';
+
+// Message Queue
+export {
+  MessageQueue,
+  JobTypes,
+  initializeMessageQueue,
+  getMessageQueue
+} from './queue/index.js';
+
+// Communication
+export {
+  EnhancedEmailService,
+  EmailTemplates,
+  EmailPriority,
+  initializeEnhancedEmailService,
+  getEnhancedEmailService
+} from './communication/index.js';
+
+// AI Optimization
+export {
+  PromptOptimizer,
+  initializePromptOptimizer,
+  getPromptOptimizer
+} from './ai/index.js';

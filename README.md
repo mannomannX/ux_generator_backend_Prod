@@ -33,28 +33,30 @@ UX-Flow-Engine is an enterprise-grade platform that transforms natural language 
                     │    Redis Pub/Sub   │
                     └─────────┬─────────┘
                               │
-        ┌──────────────┬──────┴──────┬──────────────┐
-        ▼              ▼             ▼              ▼
-┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐
-│Cognitive  │  │Knowledge  │  │   Flow    │  │   User    │
-│   Core    │  │  Service  │  │  Service  │  │Management │
-│Port 3001  │  │Port 3002  │  │Port 3003  │  │Port 3004  │
-└───────────┘  └───────────┘  └───────────┘  └───────────┘
-     │              │             │              │
-     ▼              ▼             ▼              ▼
-[Gemini AI]    [ChromaDB]    [MongoDB]      [MongoDB]
+    ┌──────┬──────────┬──────┴──────┬──────────┬──────┐
+    ▼      ▼          ▼             ▼          ▼      ▼
+┌──────┐┌──────┐┌───────────┐┌───────────┐┌──────┐┌──────┐
+│Cogni-││Knowl-││   Flow    ││   User    ││Bill- ││Admin │
+│tive  ││edge  ││  Service  ││Management ││ing   ││Portal│
+│Core  ││Svc   ││Port 3003  ││Port 3004  ││Svc   ││ TBD  │
+│3001  ││3002  │└───────────┘└───────────┘│3005  │└──────┘
+└──────┘└──────┘     │              │      └──────┘
+   │       │         ▼              ▼          │
+[AI]  [ChromaDB] [MongoDB]     [MongoDB]   [Stripe]
 ```
 
 ## ✨ Key Features
 
 ### 🤖 **Multi-Agent AI System with Advanced Scaling**
-- **9 Specialized AI Agents** working in concert
+- **10 Specialized AI Agents** working in concert (including Prompt Optimizer)
 - **500+ AI requests/minute capacity** (implemented)
+- **Self-optimizing prompt system** - learns from user corrections
 - Multi-provider load balancing (Claude, Gemini, GPT-4, Llama)
 - Semantic caching for 30% performance boost
 - Priority queue system with tier-based allocation
 - Request deduplication and batching
 - Local model support for unlimited scaling
+- Admin testing interface for model evaluation
 - See [AI Scaling Strategy](./docs/AI_SCALING_STRATEGY.md) for details
 
 ### 💰 **Billing & Monetization**
@@ -141,10 +143,11 @@ ux-flow-engine/
 │
 ├── services/
 │   ├── api-gateway/         # Entry point & WebSocket management
-│   ├── cognitive-core/      # AI agent orchestration
+│   ├── cognitive-core/      # AI agent orchestration & learning
 │   ├── flow-service/        # Flow data management
 │   ├── knowledge-service/   # RAG & vector search
-│   └── user-management/     # User authentication & workspaces
+│   ├── user-management/     # User authentication & workspaces
+│   └── billing-service/     # Subscriptions & payment processing
 │
 ├── deployment/              # K8s manifests & Terraform
 ├── docs/                    # Architecture documentation
@@ -197,19 +200,20 @@ npm run health:check
 
 ## 🤖 AI Agent System
 
-Our cognitive core orchestrates 9 specialized agents:
+Our cognitive core orchestrates 10 specialized agents:
 
 | Agent | Responsibility | Activation |
 |-------|---------------|------------|
 | **Manager** | Task delegation & coordination | Every request |
-| **Classifier** | Intent & sentiment analysis | Message processing |
+| **Classifier** | Intent & sentiment analysis, corrective feedback detection | Message processing |
 | **Planner** | Step-by-step execution plans | Build requests |
 | **Architect** | Flow structure implementation | After planning |
 | **Validator** | Quality & consistency checks | Before completion |
 | **Synthesizer** | Response generation | Final output |
 | **UX Expert** | Design best practices | UX questions |
 | **Visual Interpreter** | Image/sketch analysis | Visual inputs |
-| **Analyst** | System optimization | Performance monitoring |
+| **Analyst** | System optimization & learning episode diagnosis | Performance monitoring |
+| **Prompt Optimizer** | Generate improved prompts from user corrections | Learning system |
 
 ## 📊 Service Details
 
@@ -247,6 +251,13 @@ Our cognitive core orchestrates 9 specialized agents:
 - Team collaboration
 - Permission control
 - Session management
+
+### Billing Service (Port 3005)
+- Stripe payment integration
+- Subscription management
+- Credit tracking system
+- Usage-based billing
+- Invoice generation
 
 ## 🔧 Development
 
