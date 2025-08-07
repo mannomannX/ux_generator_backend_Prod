@@ -4,10 +4,13 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 import { Logger, EventEmitter, MongoClient, RedisClient, HealthCheck } from '@ux-flow/common';
 import { KnowledgeManager } from './services/knowledge-manager.js';
 import { EventHandlers } from './events/event-handlers.js';
+import { DataSanitizer } from './security/data-sanitizer.js';
+import { VectorSecurity } from './security/vector-security.js';
 import config from './config/index.js';
 
 // Route imports
@@ -27,6 +30,10 @@ class KnowledgeService {
     // Service components
     this.knowledgeManager = null;
     this.eventHandlers = null;
+    
+    // Security components
+    this.dataSanitizer = null;
+    this.vectorSecurity = null;
   }
 
   async initialize() {
@@ -35,11 +42,19 @@ class KnowledgeService {
       await this.mongoClient.connect();
       await this.redisClient.connect();
 
-      // Initialize knowledge manager
+      // Initialize security components
+      this.dataSanitizer = new DataSanitizer(this.logger);
+      this.vectorSecurity = new VectorSecurity(this.logger);
+      
+      // Initialize knowledge manager with security
       this.knowledgeManager = new KnowledgeManager(
         this.logger,
         this.mongoClient,
-        this.redisClient
+        this.redisClient,
+        {
+          dataSanitizer: this.dataSanitizer,
+          vectorSecurity: this.vectorSecurity
+        }
       );
       await this.knowledgeManager.initialize();
 
@@ -77,12 +92,52 @@ class KnowledgeService {
 
   setupMiddleware() {
     // Security
-    this.app.use(helmet());
-    this.app.use(cors());
+    this.app.use(helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", "data:", "https:"],
+        },
+      },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      }
+    }));
+    
+    this.app.use(cors({
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+      credentials: true,
+      maxAge: 86400
+    }));
 
-    // Body parsing
-    this.app.use(express.json({ limit: '10mb' }));
-    this.app.use(express.urlencoded({ extended: true }));
+    // Rate limiting
+    const limiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // limit each IP to 100 requests per windowMs
+      message: 'Too many requests from this IP',
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    this.app.use(limiter);
+    
+    // Stricter rate limiting for vector operations
+    const vectorLimiter = rateLimit({
+      windowMs: 1 * 60 * 1000, // 1 minute
+      max: 20, // limit each IP to 20 vector operations per minute
+      message: 'Too many vector operations',
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    this.app.use('/api/v1/knowledge/search', vectorLimiter);
+    this.app.use('/api/v1/knowledge/embed', vectorLimiter);
+
+    // Body parsing with size limits
+    this.app.use(express.json({ limit: '1mb' }));
+    this.app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
     // Request logging
     this.app.use(this.logger.requestLogger());
@@ -94,9 +149,20 @@ class KnowledgeService {
       next();
     });
 
-    // Attach services to request
+    // Attach services and security to request
     this.app.use((req, res, next) => {
       req.knowledgeManager = this.knowledgeManager;
+      req.dataSanitizer = this.dataSanitizer;
+      req.vectorSecurity = this.vectorSecurity;
+      
+      // Sanitize all input data
+      if (req.body) {
+        req.body = this.dataSanitizer.sanitizeJSON(req.body);
+      }
+      if (req.query) {
+        req.query = this.dataSanitizer.sanitizeQuery(req.query);
+      }
+      
       next();
     });
   }
@@ -138,11 +204,17 @@ class KnowledgeService {
       this.logger.error('Unhandled request error', error, {
         correlationId: req.correlationId,
         path: req.originalUrl,
+        method: req.method,
+        ip: req.ip
       });
 
-      res.status(500).json({
-        error: 'Internal server error',
+      // Don't leak error details in production
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      
+      res.status(error.status || 500).json({
+        error: isDevelopment ? error.message : 'Internal server error',
         correlationId: req.correlationId,
+        ...(isDevelopment && { stack: error.stack })
       });
     });
   }

@@ -446,7 +446,7 @@ const sendAlert = async (alert) => {
 // Graceful shutdown
 export const shutdownCircuitBreakers = async () => {
   for (const [name, breaker] of circuitBreakers) {
-    console.log(`Shutting down circuit breaker for ${name}`);
+    // Circuit breaker shutdown for ${name} - would use logger if available
     breaker.shutdown();
   }
   circuitBreakers.clear();

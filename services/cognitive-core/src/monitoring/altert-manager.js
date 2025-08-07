@@ -392,17 +392,15 @@ class AlertManager {
     const color = severityColors[alert.severity] || '\x1b[37m';
     const reset = '\x1b[0m';
     
-    console.log(`\n${color}🚨 ALERT [${alert.severity.toUpperCase()}] ${reset}`);
-    console.log(`${color}Title: ${alert.title}${reset}`);
-    console.log(`${color}Description: ${alert.description}${reset}`);
-    console.log(`${color}Time: ${alert.createdAt.toISOString()}${reset}`);
-    console.log(`${color}Alert ID: ${alert.id}${reset}`);
-    
-    if (alert.metadata.recommendation) {
-      console.log(`${color}Recommendation: ${alert.metadata.recommendation}${reset}`);
-    }
-    
-    console.log('');
+    // Use structured logging instead of console output for production alerts
+    this.logger?.warn('Alert triggered', {
+      alertId: alert.id,
+      severity: alert.severity,
+      title: alert.title,
+      description: alert.description,
+      recommendation: alert.metadata.recommendation,
+      timestamp: alert.createdAt.toISOString()
+    });
   }
 
   /**

@@ -27,12 +27,17 @@ import { authMiddleware, optionalAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { corsConfig } from './middleware/cors.js';
 import { rateLimitConfig } from './middleware/rate-limit.js';
+import { ServiceAuthenticator, ServiceClient } from './middleware/service-auth.js';
+import { ErrorRecoverySystem } from './middleware/error-recovery.js';
 
 // Route imports
 import healthRoutes from './routes/health.js';
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projects.js';
 import adminRoutes from './routes/admin.js';
+
+// Security imports
+import { SecurityLogger } from './middleware/security-logging.js';
 
 class ApiGatewayService {
   constructor() {
@@ -47,6 +52,9 @@ class ApiGatewayService {
     // Inter-service communication
     this.eventBus = null;
     this.serviceRegistry = null;
+    this.serviceAuthenticator = null;
+    this.serviceClient = null;
+    this.errorRecovery = null;
     
     // WebSocket components
     this.roomManager = null;
@@ -72,6 +80,13 @@ class ApiGatewayService {
       // Initialize Service Registry
       this.serviceRegistry = new ServiceRegistry(this.logger, this.redisClient);
       await this.serviceRegistry.initialize();
+
+      // Initialize Error Recovery System (must be early)
+      this.errorRecovery = new ErrorRecoverySystem(this.logger, this.redisClient);
+
+      // Initialize Service Authentication
+      this.serviceAuthenticator = new ServiceAuthenticator(this.logger, this.redisClient);
+      this.serviceClient = new ServiceClient('api-gateway', this.serviceAuthenticator, this.logger);
       
       // Register this service
       await this.serviceRegistry.register(
@@ -128,6 +143,9 @@ class ApiGatewayService {
   }
 
   setupMiddleware() {
+    // Initialize security logger
+    this.securityLogger = new SecurityLogger(this.logger, this.redisClient, this.mongoClient);
+    
     // Security
     this.app.use(helmet({
       contentSecurityPolicy: {
@@ -158,6 +176,20 @@ class ApiGatewayService {
     this.app.use((req, res, next) => {
       req.correlationId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       res.setHeader('X-Correlation-ID', req.correlationId);
+      next();
+    });
+    
+    // Security logging middleware - MUST be after correlation ID
+    this.app.use(this.securityLogger.createMiddleware());
+
+    // Make service components available to routes
+    this.app.use((req, res, next) => {
+      req.app.locals.mongoClient = this.mongoClient;
+      req.app.locals.redisClient = this.redisClient;
+      req.app.locals.logger = this.logger;
+      req.app.locals.serviceClient = this.serviceClient;
+      req.app.locals.eventBus = this.eventBus;
+      req.app.locals.errorRecovery = this.errorRecovery;
       next();
     });
   }

@@ -3,12 +3,16 @@
 // ==========================================
 import express from 'express';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { JWTUtils, Validators } from '@ux-flow/common';
 import { asyncHandler, ValidationError, AuthenticationError } from '../middleware/error-handler.js';
-import { authRateLimit } from '../middleware/rate-limit.js';
+import { authRateLimit, sensitiveOperationRateLimit } from '../middleware/rate-limit.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { ComprehensiveValidator } from '../middleware/comprehensive-validation.js';
+import { DatabaseTransactions } from '../utils/database-transactions.js';
 
 const router = express.Router();
+const validator = new ComprehensiveValidator();
 
 // Apply auth rate limiting to all routes
 router.use(authRateLimit);
@@ -26,8 +30,11 @@ router.post('/register', asyncHandler(async (req, res) => {
     throw new ValidationError('Invalid email format');
   }
 
-  if (password.length < 8) {
-    throw new ValidationError('Password must be at least 8 characters long');
+  // Validate password strength
+  try {
+    validator.validatePassword(password);
+  } catch (error) {
+    throw new ValidationError(error.message);
   }
 
   const db = req.app.locals.mongoClient.getDb();
@@ -40,8 +47,8 @@ router.post('/register', asyncHandler(async (req, res) => {
     throw new ValidationError('User with this email already exists');
   }
 
-  // Hash password
-  const saltRounds = 12;
+  // Hash password with configurable salt rounds
+  const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 14;
   const hashedPassword = await bcrypt.hash(password, saltRounds);
 
   // Create workspace for the user (if provided)
@@ -139,13 +146,18 @@ router.post('/login', asyncHandler(async (req, res) => {
 
   // Find user
   const user = await usersCollection.findOne({ email });
-  if (!user) {
-    throw new AuthenticationError('Invalid email or password');
+  
+  // Timing-safe password verification
+  let isValidPassword = false;
+  if (user) {
+    isValidPassword = await bcrypt.compare(password, user.password);
+  } else {
+    // Perform dummy comparison to prevent timing attacks
+    await bcrypt.compare(password, '$2b$14$dummyhash1234567890123456789012345678901234567890');
   }
-
-  // Verify password
-  const isValidPassword = await bcrypt.compare(password, user.password);
-  if (!isValidPassword) {
+  
+  if (!user || !isValidPassword) {
+    // Generic error message to prevent user enumeration
     throw new AuthenticationError('Invalid email or password');
   }
 
@@ -197,16 +209,59 @@ router.post('/login', asyncHandler(async (req, res) => {
 router.post('/refresh', authMiddleware, asyncHandler(async (req, res) => {
   const { userId, email, workspaceId, role, permissions } = req.user;
 
-  // Generate new token
+  // Extract the token from the authorization header
+  const authHeader = req.headers.authorization;
+  const currentToken = authHeader.substring(7); // Remove 'Bearer ' prefix
+  
+  // Decode the token to check its expiry time
+  const decodedToken = JWTUtils.verify(currentToken);
+  if (!decodedToken) {
+    throw new AuthenticationError('Invalid token for refresh');
+  }
+
+  // Check if the token is close to expiry (within refresh threshold)
+  const now = Math.floor(Date.now() / 1000);
+  const refreshThreshold = parseInt(process.env.JWT_REFRESH_THRESHOLD) || 86400; // 24 hours
+  const timeUntilExpiry = decodedToken.exp - now;
+  
+  if (timeUntilExpiry > refreshThreshold) {
+    return res.status(400).json({
+      error: 'Token refresh not allowed',
+      message: 'Token is not yet eligible for refresh',
+      timeUntilRefresh: timeUntilExpiry - refreshThreshold,
+      correlationId: req.correlationId,
+    });
+  }
+
+  // Verify user still exists and is active
+  const db = req.app.locals.mongoClient.getDb();
+  const usersCollection = db.collection('users');
+  const user = await usersCollection.findOne({
+    _id: userId,
+    status: { $ne: 'disabled' }
+  });
+
+  if (!user) {
+    throw new AuthenticationError('User not found or disabled');
+  }
+
+  // Generate new token with fresh user data
   const tokenPayload = {
-    userId,
-    email,
-    workspaceId,
-    role,
-    permissions,
+    userId: user._id.toString(),
+    email: user.email,
+    workspaceId: user.workspaceId,
+    role: user.role,
+    permissions: user.permissions,
   };
 
   const token = JWTUtils.sign(tokenPayload);
+
+  // Log token refresh for security monitoring
+  req.app.locals.logger?.info('Token refreshed', {
+    userId,
+    previousExpiry: new Date(decodedToken.exp * 1000).toISOString(),
+    correlationId: req.correlationId,
+  });
 
   res.json({
     message: 'Token refreshed successfully',
@@ -282,8 +337,8 @@ router.patch('/me', authMiddleware, asyncHandler(async (req, res) => {
   });
 }));
 
-// Change password
-router.post('/change-password', authMiddleware, asyncHandler(async (req, res) => {
+// Change password with enhanced security
+router.post('/change-password', authMiddleware, sensitiveOperationRateLimit, asyncHandler(async (req, res) => {
   const { userId } = req.user;
   const { currentPassword, newPassword } = req.body;
 
@@ -310,8 +365,8 @@ router.post('/change-password', authMiddleware, asyncHandler(async (req, res) =>
     throw new AuthenticationError('Current password is incorrect');
   }
 
-  // Hash new password
-  const saltRounds = 12;
+  // Hash new password with consistent salt rounds
+  const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 14;
   const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
 
   // Update password

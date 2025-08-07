@@ -169,3 +169,40 @@ export const websocketRateLimit = rateLimit({
     message: 'Too many WebSocket connection attempts',
   },
 });
+
+// Strict rate limiting for sensitive operations like password changes
+export const sensitiveOperationRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3, // Only 3 attempts per 15 minutes
+  
+  keyGenerator: (req) => {
+    if (req.user && req.user.userId) {
+      return `sensitive:user:${req.user.userId}`;
+    }
+    return `sensitive:ip:${req.ip}`;
+  },
+  
+  message: {
+    error: 'Sensitive operation rate limit exceeded',
+    message: 'Too many sensitive operations. Please wait before trying again.',
+    retryAfter: '15 minutes',
+  },
+  
+  handler: (req, res) => {
+    // Log security event for suspicious activity
+    req.app.locals.logger?.warn('Sensitive operation rate limit exceeded', {
+      userId: req.user?.userId,
+      ip: req.ip,
+      endpoint: req.path,
+      userAgent: req.headers['user-agent'],
+      correlationId: req.correlationId
+    });
+    
+    res.status(429).json({
+      error: 'Rate limit exceeded',
+      message: 'Too many sensitive operations attempted',
+      retryAfter: '15 minutes',
+      correlationId: req.correlationId,
+    });
+  },
+});

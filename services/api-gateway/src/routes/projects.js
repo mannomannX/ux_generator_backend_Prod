@@ -6,8 +6,19 @@ import { MongoClient } from '@ux-flow/common';
 import { asyncHandler, ValidationError, NotFoundError, AuthorizationError } from '../middleware/error-handler.js';
 import { requireWorkspaceAccess, requirePermission } from '../middleware/auth.js';
 import { apiRateLimit } from '../middleware/rate-limit.js';
+import { 
+  validateObjectId, 
+  validatePagination, 
+  sanitizeInput,
+  sanitizeRegexPattern,
+  validateVisibility,
+  validateProjectStatus
+} from '../utils/validation.js';
+import { ServiceClient } from '../middleware/service-auth.js';
+import { ComprehensiveValidator } from '../middleware/comprehensive-validation.js';
 
 const router = express.Router();
+const validator = new ComprehensiveValidator();
 
 // Apply API rate limiting
 router.use(apiRateLimit);
@@ -31,13 +42,18 @@ router.get('/', requirePermission('read_projects'), asyncHandler(async (req, res
   };
 
   if (search) {
-    query.$and = query.$and || [];
-    query.$and.push({
-      $or: [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-      ],
-    });
+    // Sanitize and escape search input to prevent ReDoS attacks
+    const sanitizedSearch = validator.validateSearchInput(search);
+    
+    if (sanitizedSearch) {
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { name: { $regex: sanitizedSearch, $options: 'i' } },
+          { description: { $regex: sanitizedSearch, $options: 'i' } },
+        ],
+      });
+    }
   }
 
   if (status) {
@@ -94,8 +110,11 @@ router.get('/:projectId', requirePermission('read_projects'), asyncHandler(async
   const db = req.app.locals.mongoClient.getDb();
   const projectsCollection = db.collection('projects');
 
+  // Validate ObjectId to prevent injection
+  const validatedProjectId = validator.validateObjectId(projectId, 'projectId');
+  
   const project = await projectsCollection.findOne({
-    _id: MongoClient.createObjectId(projectId),
+    _id: MongoClient.createObjectId(validatedProjectId),
     workspaceId,
   });
 
@@ -114,7 +133,8 @@ router.get('/:projectId', requirePermission('read_projects'), asyncHandler(async
   }
 
   // Get flow data from Flow Service
-  const flowData = await getProjectFlow(projectId);
+  const serviceClient = req.app.locals.serviceClient;
+  const flowData = await getProjectFlow(projectId, serviceClient, req.correlationId).catch(() => null);
 
   res.json({
     project: {
@@ -142,20 +162,20 @@ router.post('/', requirePermission('write_projects'), asyncHandler(async (req, r
   const db = req.app.locals.mongoClient.getDb();
   const projectsCollection = db.collection('projects');
 
-  // Check if project name already exists in workspace
-  const existingProject = await projectsCollection.findOne({
-    workspaceId,
-    name,
-  });
-
-  if (existingProject) {
-    throw new ValidationError('A project with this name already exists in your workspace');
+  // Ensure unique index exists for workspace+name combination
+  try {
+    await projectsCollection.createIndex(
+      { workspaceId: 1, name: 1 }, 
+      { unique: true, background: true }
+    );
+  } catch (error) {
+    // Index might already exist, continue
   }
 
-  // Create project
+  // Create project with atomic operation to prevent race condition
   const project = {
-    name,
-    description: description || '',
+    name: sanitizeInput(name, 100),
+    description: sanitizeInput(description || '', 500),
     ownerId: userId,
     workspaceId,
     members: [
@@ -183,11 +203,28 @@ router.post('/', requirePermission('write_projects'), asyncHandler(async (req, r
     updatedAt: new Date(),
   };
 
-  const result = await projectsCollection.insertOne(project);
-  const projectId = result.insertedId.toString();
+  let result;
+  let projectId;
+  
+  try {
+    result = await projectsCollection.insertOne(project);
+    projectId = result.insertedId.toString();
+  } catch (error) {
+    // Handle duplicate key error (race condition)
+    if (error.code === 11000) {
+      throw new ValidationError('A project with this name already exists in your workspace');
+    }
+    throw error;
+  }
 
   // Initialize flow in Flow Service
-  await initializeProjectFlow(projectId, template);
+  await initializeProjectFlow(
+    projectId, 
+    template, 
+    req.app.locals.serviceClient, 
+    req.app.locals.logger, 
+    req.correlationId
+  );
 
   req.app.locals.logger.info('Project created', {
     projectId,
@@ -216,9 +253,12 @@ router.patch('/:projectId', requirePermission('write_projects'), asyncHandler(as
   const db = req.app.locals.mongoClient.getDb();
   const projectsCollection = db.collection('projects');
 
+  // Validate ObjectId to prevent injection
+  const validatedProjectId = validator.validateObjectId(projectId, 'projectId');
+  
   // Check if project exists and user has access
   const project = await projectsCollection.findOne({
-    _id: MongoClient.createObjectId(projectId),
+    _id: MongoClient.createObjectId(validatedProjectId),
     workspaceId,
   });
 
@@ -248,11 +288,11 @@ router.patch('/:projectId', requirePermission('write_projects'), asyncHandler(as
       throw new ValidationError('Project name must be between 1 and 100 characters');
     }
     
-    // Check for name conflicts
+    // Check for name conflicts with validated ObjectId
     const existingProject = await projectsCollection.findOne({
       workspaceId,
       name,
-      _id: { $ne: MongoClient.createObjectId(projectId) },
+      _id: { $ne: MongoClient.createObjectId(validatedProjectId) },
     });
 
     if (existingProject) {
@@ -279,7 +319,7 @@ router.patch('/:projectId', requirePermission('write_projects'), asyncHandler(as
 
   // Update project
   const result = await projectsCollection.updateOne(
-    { _id: MongoClient.createObjectId(projectId) },
+    { _id: validateObjectId(projectId, 'Project ID') },
     { $set: updateData }
   );
 
@@ -309,7 +349,7 @@ router.delete('/:projectId', requirePermission('delete_own_projects'), asyncHand
 
   // Check if project exists and user is owner
   const project = await projectsCollection.findOne({
-    _id: MongoClient.createObjectId(projectId),
+    _id: validateObjectId(projectId, 'Project ID'),
     workspaceId,
     ownerId: userId, // Only owner can delete
   });
@@ -320,7 +360,7 @@ router.delete('/:projectId', requirePermission('delete_own_projects'), asyncHand
 
   // Soft delete the project
   await projectsCollection.updateOne(
-    { _id: MongoClient.createObjectId(projectId) },
+    { _id: validateObjectId(projectId, 'Project ID') },
     {
       $set: {
         status: 'deleted',
@@ -331,7 +371,12 @@ router.delete('/:projectId', requirePermission('delete_own_projects'), asyncHand
   );
 
   // Archive flow data in Flow Service
-  await archiveProjectFlow(projectId);
+  await archiveProjectFlow(
+    projectId, 
+    req.app.locals.serviceClient, 
+    req.app.locals.logger, 
+    req.correlationId
+  );
 
   req.app.locals.logger.info('Project deleted', {
     projectId,
@@ -361,7 +406,7 @@ router.post('/:projectId/members', requirePermission('write_projects'), asyncHan
 
   // Check if project exists and user has admin access
   const project = await projectsCollection.findOne({
-    _id: MongoClient.createObjectId(projectId),
+    _id: validateObjectId(projectId, 'Project ID'),
     workspaceId,
   });
 
@@ -403,7 +448,7 @@ router.post('/:projectId/members', requirePermission('write_projects'), asyncHan
   };
 
   await projectsCollection.updateOne(
-    { _id: MongoClient.createObjectId(projectId) },
+    { _id: validateObjectId(projectId, 'Project ID') },
     {
       $push: { members: newMember },
       $set: { updatedAt: new Date() },
@@ -437,7 +482,7 @@ router.delete('/:projectId/members/:memberId', requirePermission('write_projects
 
   // Check if project exists and user has admin access
   const project = await projectsCollection.findOne({
-    _id: MongoClient.createObjectId(projectId),
+    _id: validateObjectId(projectId, 'Project ID'),
     workspaceId,
   });
 
@@ -462,7 +507,7 @@ router.delete('/:projectId/members/:memberId', requirePermission('write_projects
 
   // Remove member
   const result = await projectsCollection.updateOne(
-    { _id: MongoClient.createObjectId(projectId) },
+    { _id: validateObjectId(projectId, 'Project ID') },
     {
       $pull: { members: { userId: memberId } },
       $set: { updatedAt: new Date() },
@@ -496,7 +541,7 @@ router.get('/:projectId/export', requirePermission('read_projects'), asyncHandle
 
   // Check access
   const project = await projectsCollection.findOne({
-    _id: MongoClient.createObjectId(projectId),
+    _id: validateObjectId(projectId, 'Project ID'),
     workspaceId,
   });
 
@@ -514,7 +559,8 @@ router.get('/:projectId/export', requirePermission('read_projects'), asyncHandle
   }
 
   // Get flow data from Flow Service
-  const flowData = await getProjectFlow(projectId);
+  const serviceClient = req.app.locals.serviceClient;
+  const flowData = await getProjectFlow(projectId, serviceClient, req.correlationId).catch(() => null);
 
   // Prepare export data
   const exportData = {
@@ -548,25 +594,75 @@ router.get('/:projectId/export', requirePermission('read_projects'), asyncHandle
   });
 }));
 
-// Helper functions for Flow Service integration
-async function getProjectFlow(projectId) {
-  // TODO: Integrate with Flow Service
-  // For now, return basic structure
-  return {
-    metadata: { flowName: 'Flow', version: '1.0.0' },
-    nodes: [{ id: 'start', type: 'Start' }],
-    edges: [],
-  };
+// Helper functions for Flow Service integration with proper authentication
+async function getProjectFlow(projectId, serviceClient, correlationId) {
+  try {
+    const flow = await serviceClient.get(
+      'flow-service',
+      `/api/v1/flows/project/${projectId}`,
+      { correlationId }
+    );
+    return flow;
+  } catch (error) {
+    // If Flow Service is not available, return basic structure
+    return {
+      metadata: { flowName: 'Flow', version: '1.0.0' },
+      nodes: [{ id: 'start', type: 'Start' }],
+      edges: [],
+    };
+  }
 }
 
-async function initializeProjectFlow(projectId, template = null) {
-  // TODO: Send event to Flow Service to initialize flow
-  console.log(`Initializing flow for project ${projectId} with template ${template}`);
+async function initializeProjectFlow(projectId, template = null, serviceClient, logger, correlationId) {
+  try {
+    await serviceClient.post(
+      'flow-service',
+      '/api/v1/flows/initialize',
+      {
+        projectId,
+        template: template || 'basic',
+        initialNodes: [{ id: 'start', type: 'Start' }]
+      },
+      { correlationId }
+    );
+    
+    logger?.info('Project flow initialized successfully', {
+      projectId,
+      template,
+      correlationId
+    });
+  } catch (error) {
+    logger?.warn('Failed to initialize project flow', {
+      projectId,
+      template,
+      error: error.message,
+      correlationId
+    });
+    // Don't throw error - flow can be initialized later
+  }
 }
 
-async function archiveProjectFlow(projectId) {
-  // TODO: Send event to Flow Service to archive flow
-  console.log(`Archiving flow for project ${projectId}`);
+async function archiveProjectFlow(projectId, serviceClient, logger, correlationId) {
+  try {
+    await serviceClient.post(
+      'flow-service',
+      '/api/v1/flows/archive',
+      { projectId },
+      { correlationId }
+    );
+    
+    logger?.info('Project flow archived successfully', {
+      projectId,
+      correlationId
+    });
+  } catch (error) {
+    logger?.warn('Failed to archive project flow', {
+      projectId,
+      error: error.message,
+      correlationId
+    });
+    // Don't throw error - archiving can be done later
+  }
 }
 
 export default router;

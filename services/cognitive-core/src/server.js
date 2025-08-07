@@ -17,6 +17,9 @@ import {
 } from '@ux-flow/common';
 import { AgentOrchestrator } from './orchestrator/agent-orchestrator.js';
 import { EventHandlers } from './orchestrator/event-handlers.js';
+import { ApiKeyManager } from './security/api-key-manager.js';
+import { ConversationEncryption } from './security/conversation-encryption.js';
+import { PromptSecurity } from './security/prompt-security.js';
 import config from './config/index.js';
 
 class CognitiveCoreService {
@@ -31,6 +34,11 @@ class CognitiveCoreService {
     // Inter-service communication
     this.eventBus = null;
     this.serviceRegistry = null;
+    
+    // Security components
+    this.apiKeyManager = null;
+    this.conversationEncryption = null;
+    this.promptSecurity = null;
     
     this.orchestrator = null;
     this.eventHandlers = null;
@@ -54,6 +62,14 @@ class CognitiveCoreService {
       // Initialize Service Registry
       this.serviceRegistry = new ServiceRegistry(this.logger, this.redisClient);
       await this.serviceRegistry.initialize();
+
+      // Initialize Security Components
+      this.apiKeyManager = new ApiKeyManager(this.logger, this.redisClient);
+      this.conversationEncryption = new ConversationEncryption(this.logger);
+      this.promptSecurity = new PromptSecurity(this.logger);
+
+      // Verify encryption is working
+      this.conversationEncryption.verifyEncryption();
       
       // Register this service
       await this.serviceRegistry.register(
@@ -67,12 +83,17 @@ class CognitiveCoreService {
         })
       );
 
-      // Initialize orchestrator and event handlers
+      // Initialize orchestrator and event handlers with security components
       this.orchestrator = new AgentOrchestrator(
         this.logger,
         this.eventEmitter,
         this.mongoClient,
-        this.redisClient
+        this.redisClient,
+        {
+          apiKeyManager: this.apiKeyManager,
+          conversationEncryption: this.conversationEncryption,
+          promptSecurity: this.promptSecurity
+        }
       );
 
       this.eventHandlers = new EventHandlers(

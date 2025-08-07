@@ -54,6 +54,39 @@ export class StripeService {
   }
 
   /**
+   * Verify webhook signature for security
+   */
+  async verifyWebhookSignature(payload, signature, secret) {
+    try {
+      // Stripe requires the raw body for signature verification
+      const event = this.stripe.webhooks.constructEvent(
+        payload,
+        signature,
+        secret || this.config.webhookSecret
+      );
+      
+      // Additional validation
+      if (!event.id || !event.type) {
+        throw new Error('Invalid webhook event structure');
+      }
+      
+      // Check event timestamp to prevent replay attacks
+      const tolerance = 300; // 5 minutes
+      const timestamp = event.created || Math.floor(Date.now() / 1000);
+      const currentTime = Math.floor(Date.now() / 1000);
+      
+      if (Math.abs(currentTime - timestamp) > tolerance) {
+        throw new Error('Webhook timestamp outside tolerance window');
+      }
+      
+      return event;
+    } catch (error) {
+      this.logger.error('Webhook signature verification failed', error);
+      throw error;
+    }
+  }
+
+  /**
    * Validate that configured price IDs exist in Stripe
    */
   async validatePriceIds() {

@@ -15,21 +15,21 @@ const options = {
 
 const healthCheck = http.request(options, (res) => {
   if (res.statusCode === 200) {
-    console.log('Health check passed');
+    // Health check passed
     process.exit(0);
   } else {
-    console.error(`Health check failed with status: ${res.statusCode}`);
+    // Health check failed with status: ${res.statusCode}
     process.exit(1);
   }
 });
 
 healthCheck.on('error', (err) => {
-  console.error('Health check failed:', err.message);
+  // Health check failed: ${err.message}
   process.exit(1);
 });
 
 healthCheck.on('timeout', () => {
-  console.error('Health check timeout');
+  // Health check timeout
   healthCheck.destroy();
   process.exit(1);
 });

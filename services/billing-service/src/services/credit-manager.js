@@ -12,6 +12,47 @@ export class CreditManager {
     this.eventEmitter = eventEmitter;
     this.creditCosts = config.creditCosts;
   }
+  
+  /**
+   * Acquire distributed lock for atomic operations
+   */
+  async acquireLock(key, token, ttlMs = 5000) {
+    if (!this.redisClient) return true; // Fallback if Redis not available
+    
+    try {
+      const result = await this.redisClient.set(
+        key,
+        token,
+        'PX', ttlMs,
+        'NX'
+      );
+      return result === 'OK';
+    } catch (error) {
+      this.logger.error('Failed to acquire lock', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Release distributed lock
+   */
+  async releaseLock(key, token) {
+    if (!this.redisClient) return;
+    
+    try {
+      // Use Lua script for atomic check-and-delete
+      const script = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+          return redis.call("del", KEYS[1])
+        else
+          return 0
+        end
+      `;
+      await this.redisClient.eval(script, 1, key, token);
+    } catch (error) {
+      this.logger.error('Failed to release lock', error);
+    }
+  }
 
   /**
    * Get current credit balance for a workspace

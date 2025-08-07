@@ -5,11 +5,16 @@
 import { AIProviderManager } from '../providers/ai-provider-manager.js';
 
 export class AgentOrchestrator {
-  constructor(logger, eventEmitter, mongoClient, redisClient) {
+  constructor(logger, eventEmitter, mongoClient, redisClient, security = {}) {
     this.logger = logger;
     this.eventEmitter = eventEmitter;
     this.mongoClient = mongoClient;
     this.redisClient = redisClient;
+    
+    // Security components
+    this.apiKeyManager = security.apiKeyManager;
+    this.conversationEncryption = security.conversationEncryption;
+    this.promptSecurity = security.promptSecurity;
     
     // AI Provider Manager
     this.aiProviders = null;
@@ -17,7 +22,7 @@ export class AgentOrchestrator {
     // Agent configurations
     this.agents = new Map();
     
-    // Conversation history
+    // Conversation history (encrypted)
     this.conversationHistory = new Map();
     
     // Performance metrics
@@ -25,7 +30,8 @@ export class AgentOrchestrator {
       totalRequests: 0,
       successfulResponses: 0,
       failedResponses: 0,
-      averageResponseTime: 0
+      averageResponseTime: 0,
+      blockedRequests: 0
     };
   }
 
@@ -97,6 +103,11 @@ export class AgentOrchestrator {
       throw new Error(`Agent '${agentName}' not found`);
     }
 
+    // Sanitize prompt before processing
+    if (this.promptSecurity) {
+      prompt = this.promptSecurity.sanitizePrompt(prompt);
+    }
+
     const {
       qualityMode = 'normal',
       conversation = [],
@@ -139,20 +150,47 @@ export class AgentOrchestrator {
     }
   }
 
-  async processUserMessage(userId, projectId, message, qualityMode = 'normal') {
+  async processUserMessage(userId, projectId, message, qualityMode = 'normal', apiKey = null) {
     const startTime = Date.now();
     this.metrics.totalRequests++;
 
     try {
+      // Validate API key if provided
+      if (apiKey && this.apiKeyManager) {
+        const keyValidation = await this.apiKeyManager.validateKey(apiKey);
+        if (!keyValidation.valid) {
+          this.metrics.blockedRequests++;
+          throw new Error('Invalid or expired API key');
+        }
+      }
+
+      // Check prompt security
+      if (this.promptSecurity) {
+        const securityCheck = this.promptSecurity.validatePrompt(message);
+        if (!securityCheck.safe) {
+          this.metrics.blockedRequests++;
+          this.logger.warn('Potentially malicious prompt blocked', {
+            userId,
+            projectId,
+            threats: securityCheck.threats
+          });
+          throw new Error('Request blocked due to security concerns');
+        }
+        
+        // Sanitize the message
+        message = this.promptSecurity.sanitizePrompt(message);
+      }
+
       // Get or create conversation history
       const conversationKey = `${userId}:${projectId}`;
-      let conversation = this.conversationHistory.get(conversationKey) || [];
+      let conversation = await this.getEncryptedConversation(conversationKey);
 
       // Add user message to history
       conversation.push({
         role: 'user',
         content: message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        encrypted: false
       });
 
       // Analyze the message to determine appropriate agent(s)
@@ -174,7 +212,7 @@ export class AgentOrchestrator {
       if (conversation.length > 20) {
         conversation = conversation.slice(-20);
       }
-      this.conversationHistory.set(conversationKey, conversation);
+      await this.storeEncryptedConversation(conversationKey, conversation);
 
       // Update metrics
       const responseTime = Date.now() - startTime;
@@ -378,6 +416,58 @@ export class AgentOrchestrator {
     } catch (error) {
       return { status: 'unhealthy', error: error.message };
     }
+  }
+
+  async getEncryptedConversation(conversationKey) {
+    if (!this.conversationEncryption) {
+      return this.conversationHistory.get(conversationKey) || [];
+    }
+
+    const encryptedData = this.conversationHistory.get(conversationKey);
+    if (!encryptedData) {
+      return [];
+    }
+
+    try {
+      const decrypted = this.conversationEncryption.decryptConversation(encryptedData);
+      return decrypted;
+    } catch (error) {
+      this.logger.error('Failed to decrypt conversation', error);
+      return [];
+    }
+  }
+
+  async storeEncryptedConversation(conversationKey, conversation) {
+    if (!this.conversationEncryption) {
+      this.conversationHistory.set(conversationKey, conversation);
+      return;
+    }
+
+    try {
+      const encrypted = this.conversationEncryption.encryptConversation(conversation);
+      this.conversationHistory.set(conversationKey, encrypted);
+      
+      // Also store in Redis for persistence
+      await this.redisClient.setAsync(
+        `conversation:${conversationKey}`,
+        JSON.stringify(encrypted),
+        'EX',
+        86400 // 24 hour expiry
+      );
+    } catch (error) {
+      this.logger.error('Failed to encrypt conversation', error);
+      // Store unencrypted as fallback
+      this.conversationHistory.set(conversationKey, conversation);
+    }
+  }
+
+  getSecurityMetrics() {
+    return {
+      blockedRequests: this.metrics.blockedRequests,
+      encryptionEnabled: !!this.conversationEncryption,
+      apiKeyValidationEnabled: !!this.apiKeyManager,
+      promptSecurityEnabled: !!this.promptSecurity
+    };
   }
 }
 
