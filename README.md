@@ -355,6 +355,7 @@ See individual service `OPEN_QUESTIONS.md` files for detailed questions:
 - [API Gateway Questions](./services/api-gateway/OPEN_QUESTIONS.md)
 - [Billing Service Questions](./services/billing-service/OPEN_QUESTIONS.md)
 - [Cognitive Core Questions](./services/cognitive-core/OPEN_QUESTIONS.md)
+- [Flow Service Questions](./services/flow-service/OPEN_QUESTIONS.md)
 - [Knowledge Service Questions](./services/knowledge-service/OPEN_QUESTIONS.md)
 - [User Management Questions](./services/user-management/OPEN_QUESTIONS.md)
 

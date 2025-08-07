@@ -20,6 +20,9 @@ import { EventHandlers } from './orchestrator/event-handlers.js';
 import { ApiKeyManager } from './security/api-key-manager.js';
 import { ConversationEncryption } from './security/conversation-encryption.js';
 import { PromptSecurity } from './security/prompt-security.js';
+import { PromptSecuritySystem } from './security/prompt-security-system.js';
+import { LearningSystem } from './learning/learning-system.js';
+import { AIProviderManager } from './ai/ai-provider-manager.js';
 import config from './config/index.js';
 
 class CognitiveCoreService {
@@ -39,6 +42,11 @@ class CognitiveCoreService {
     this.apiKeyManager = null;
     this.conversationEncryption = null;
     this.promptSecurity = null;
+    this.promptSecuritySystem = null;
+    
+    // AI and learning components
+    this.learningSystem = null;
+    this.aiProviderManager = null;
     
     this.orchestrator = null;
     this.eventHandlers = null;
@@ -67,6 +75,13 @@ class CognitiveCoreService {
       this.apiKeyManager = new ApiKeyManager(this.logger, this.redisClient);
       this.conversationEncryption = new ConversationEncryption(this.logger);
       this.promptSecurity = new PromptSecurity(this.logger);
+      this.promptSecuritySystem = new PromptSecuritySystem(this.logger, this.mongoClient, this.redisClient);
+
+      // Initialize Learning System
+      this.learningSystem = new LearningSystem(this.logger, this.mongoClient, this.redisClient);
+
+      // Initialize AI Provider Manager (need billing service reference)
+      this.aiProviderManager = new AIProviderManager(this.logger, this.mongoClient, this.redisClient, null);
 
       // Verify encryption is working
       this.conversationEncryption.verifyEncryption();
@@ -92,7 +107,10 @@ class CognitiveCoreService {
         {
           apiKeyManager: this.apiKeyManager,
           conversationEncryption: this.conversationEncryption,
-          promptSecurity: this.promptSecurity
+          promptSecurity: this.promptSecurity,
+          promptSecuritySystem: this.promptSecuritySystem,
+          learningSystem: this.learningSystem,
+          aiProviderManager: this.aiProviderManager
         }
       );
 
@@ -171,6 +189,126 @@ class CognitiveCoreService {
         res.json({ success: true, result });
       } catch (error) {
         this.logger.error('Manual agent invocation failed', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Learning system routes
+    this.app.post('/learning/feedback', async (req, res) => {
+      try {
+        await this.learningSystem.recordUserFeedback(req.body);
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error('Failed to record feedback', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    this.app.post('/learning/manual-moment', async (req, res) => {
+      try {
+        await this.learningSystem.recordManualLearningMoment(req.body);
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error('Failed to record manual learning moment', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    this.app.get('/learning/insights/:agentType', async (req, res) => {
+      try {
+        const insights = await this.learningSystem.getLearningInsights(req.params.agentType);
+        res.json(insights);
+      } catch (error) {
+        this.logger.error('Failed to get learning insights', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    this.app.get('/learning/stats', async (req, res) => {
+      try {
+        const stats = await this.learningSystem.getLearningStats();
+        res.json(stats);
+      } catch (error) {
+        this.logger.error('Failed to get learning stats', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    this.app.post('/learning/opt-out', async (req, res) => {
+      try {
+        const { userId, reason } = req.body;
+        await this.learningSystem.optOutUser(userId, reason);
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error('Failed to opt out user', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    this.app.post('/learning/opt-in', async (req, res) => {
+      try {
+        const { userId } = req.body;
+        await this.learningSystem.optInUser(userId);
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error('Failed to opt in user', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // Security system routes
+    this.app.get('/security/stats', async (req, res) => {
+      try {
+        const { timeframe = '24h' } = req.query;
+        const stats = await this.promptSecuritySystem.getSecurityStats(timeframe);
+        res.json(stats);
+      } catch (error) {
+        this.logger.error('Failed to get security stats', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    this.app.get('/security/unreviewed', async (req, res) => {
+      try {
+        const { limit = 50 } = req.query;
+        const events = await this.promptSecuritySystem.getUnreviewedEvents(parseInt(limit));
+        res.json(events);
+      } catch (error) {
+        this.logger.error('Failed to get unreviewed security events', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    this.app.post('/security/false-positive', async (req, res) => {
+      try {
+        const { promptHash, reviewedBy, reason } = req.body;
+        await this.promptSecuritySystem.markAsFalsePositive(promptHash, reviewedBy, reason);
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error('Failed to mark as false positive', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    // AI provider management routes
+    this.app.get('/providers/stats', async (req, res) => {
+      try {
+        const stats = await this.aiProviderManager.getProviderStats();
+        res.json(stats);
+      } catch (error) {
+        this.logger.error('Failed to get provider stats', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    this.app.get('/providers/available', (req, res) => {
+      try {
+        res.json({
+          providers: this.aiProviderManager.getAvailableProviders(),
+          totalModels: this.aiProviderManager.getTotalModelCount()
+        });
+      } catch (error) {
+        this.logger.error('Failed to get available providers', error);
         res.status(500).json({ success: false, error: error.message });
       }
     });
