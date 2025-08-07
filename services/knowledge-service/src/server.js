@@ -11,6 +11,8 @@ import { KnowledgeManager } from './services/knowledge-manager.js';
 import { EventHandlers } from './events/event-handlers.js';
 import { DataSanitizer } from './security/data-sanitizer.js';
 import { VectorSecurity } from './security/vector-security.js';
+import { EmbeddingProviderManager } from './embeddings/embedding-provider-manager.js';
+import { EnhancedRAGSystem } from './rag/enhanced-rag-system.js';
 import config from './config/index.js';
 
 // Route imports
@@ -30,6 +32,8 @@ class KnowledgeService {
     // Service components
     this.knowledgeManager = null;
     this.eventHandlers = null;
+    this.embeddingManager = null;
+    this.ragSystem = null;
     
     // Security components
     this.dataSanitizer = null;
@@ -46,14 +50,34 @@ class KnowledgeService {
       this.dataSanitizer = new DataSanitizer(this.logger);
       this.vectorSecurity = new VectorSecurity(this.logger);
       
-      // Initialize knowledge manager with security
+      // Initialize embedding provider manager
+      this.embeddingManager = new EmbeddingProviderManager(
+        this.logger,
+        this.mongoClient,
+        this.redisClient,
+        null // billingService will be injected later
+      );
+      await this.embeddingManager.initialize();
+      
+      // Initialize enhanced RAG system
+      this.ragSystem = new EnhancedRAGSystem(
+        this.logger,
+        this.mongoClient,
+        this.redisClient,
+        this.embeddingManager
+      );
+      await this.ragSystem.initialize();
+      
+      // Initialize knowledge manager with new systems
       this.knowledgeManager = new KnowledgeManager(
         this.logger,
         this.mongoClient,
         this.redisClient,
         {
           dataSanitizer: this.dataSanitizer,
-          vectorSecurity: this.vectorSecurity
+          vectorSecurity: this.vectorSecurity,
+          embeddingManager: this.embeddingManager,
+          ragSystem: this.ragSystem
         }
       );
       await this.knowledgeManager.initialize();
@@ -152,6 +176,8 @@ class KnowledgeService {
     // Attach services and security to request
     this.app.use((req, res, next) => {
       req.knowledgeManager = this.knowledgeManager;
+      req.embeddingManager = this.embeddingManager;
+      req.ragSystem = this.ragSystem;
       req.dataSanitizer = this.dataSanitizer;
       req.vectorSecurity = this.vectorSecurity;
       
@@ -174,6 +200,102 @@ class KnowledgeService {
     // API routes
     this.app.use('/api/v1/knowledge', knowledgeRoutes);
     this.app.use('/api/v1/documents', documentsRoutes);
+
+    // Enhanced RAG endpoints
+    this.app.post('/api/v1/rag/query', async (req, res) => {
+      try {
+        const { query, userId, workspaceId, projectId, ...options } = req.body;
+        
+        if (!query) {
+          return res.status(400).json({ error: 'Query is required' });
+        }
+
+        const result = await req.ragSystem.queryKnowledgeBase(query, {
+          userId,
+          workspaceId,
+          projectId,
+          ...options
+        });
+
+        res.json(result);
+      } catch (error) {
+        this.logger.error('RAG query failed', error);
+        res.status(500).json({ error: 'Query processing failed' });
+      }
+    });
+
+    this.app.post('/api/v1/rag/add-document', async (req, res) => {
+      try {
+        const result = await req.ragSystem.addDocument(req.body);
+        res.json(result);
+      } catch (error) {
+        this.logger.error('Add document to RAG failed', error);
+        
+        if (error.message.includes('PII')) {
+          res.status(400).json({ error: error.message });
+        } else {
+          res.status(500).json({ error: 'Document processing failed' });
+        }
+      }
+    });
+
+    this.app.get('/api/v1/rag/stats', async (req, res) => {
+      try {
+        const stats = await req.ragSystem.getRAGStats();
+        res.json(stats);
+      } catch (error) {
+        this.logger.error('Failed to get RAG stats', error);
+        res.status(500).json({ error: 'Failed to retrieve stats' });
+      }
+    });
+
+    // Enhanced embedding endpoints
+    this.app.post('/api/v1/embeddings/generate', async (req, res) => {
+      try {
+        const { texts, userId, workspaceId, ...options } = req.body;
+        
+        if (!texts) {
+          return res.status(400).json({ error: 'Texts are required' });
+        }
+
+        const result = await req.embeddingManager.generateEmbeddings(texts, {
+          userId,
+          workspaceId,
+          ...options
+        });
+
+        res.json(result);
+      } catch (error) {
+        this.logger.error('Embedding generation failed', error);
+        res.status(500).json({ error: 'Embedding generation failed' });
+      }
+    });
+
+    this.app.get('/api/v1/embeddings/providers', (req, res) => {
+      try {
+        res.json({
+          available: req.embeddingManager.getAvailableProviders(),
+          default: {
+            provider: req.embeddingManager.defaultProvider,
+            model: req.embeddingManager.defaultModel
+          }
+        });
+      } catch (error) {
+        this.logger.error('Failed to get embedding providers', error);
+        res.status(500).json({ error: 'Failed to retrieve providers' });
+      }
+    });
+
+    this.app.get('/api/v1/embeddings/stats', async (req, res) => {
+      try {
+        const { timeframe = '24h' } = req.query;
+        const stats = await req.embeddingManager.getProviderStats(timeframe);
+        res.json(stats);
+      } catch (error) {
+        this.logger.error('Failed to get embedding stats', error);
+        res.status(500).json({ error: 'Failed to retrieve stats' });
+      }
+    });
 
     // Root endpoint
     this.app.get('/', (req, res) => {
