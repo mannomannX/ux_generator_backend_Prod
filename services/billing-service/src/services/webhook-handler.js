@@ -3,12 +3,17 @@
 // ==========================================
 
 export class WebhookHandler {
-  constructor(logger, stripeService, billingManager, subscriptionManager, creditManager) {
+  constructor(logger, stripeService, billingManager, subscriptionManager, creditManager, redisClient) {
     this.logger = logger;
     this.stripeService = stripeService;
     this.billingManager = billingManager;
     this.subscriptionManager = subscriptionManager;
     this.creditManager = creditManager;
+    this.redisClient = redisClient;
+    
+    // SECURITY FIX: Idempotency tracking
+    this.processedEvents = new Set();
+    this.maxEventAge = 24 * 60 * 60 * 1000; // 24 hours
     
     // Event handlers mapping
     this.eventHandlers = {
@@ -27,12 +32,23 @@ export class WebhookHandler {
   }
 
   /**
-   * Process incoming webhook
+   * SECURITY FIX: Enhanced webhook processing with idempotency
    */
   async processWebhook(rawBody, signature) {
+    let event;
     try {
       // Verify webhook signature
-      const event = this.stripeService.verifyWebhookSignature(rawBody, signature);
+      event = this.stripeService.verifyWebhookSignature(rawBody, signature);
+      
+      // SECURITY FIX: Check for duplicate/replay events
+      const isDuplicate = await this.checkIdempotency(event.id);
+      if (isDuplicate) {
+        this.logger.info('Duplicate webhook event ignored', { 
+          type: event.type, 
+          id: event.id 
+        });
+        return { received: true, duplicate: true };
+      }
       
       this.logger.info('Processing webhook event', { 
         type: event.type, 
@@ -43,9 +59,21 @@ export class WebhookHandler {
       const handler = this.eventHandlers[event.type];
       
       if (handler) {
-        await handler(event);
+        // SECURITY FIX: Process with distributed locking for critical events
+        const isCriticalEvent = this.isCriticalEvent(event.type);
+        
+        if (isCriticalEvent) {
+          await this.processWithLocking(event, handler);
+        } else {
+          await handler(event);
+        }
+        
+        // Mark event as processed
+        await this.markEventProcessed(event.id);
+        
         this.logger.info('Webhook processed successfully', { 
-          type: event.type 
+          type: event.type,
+          id: event.id 
         });
       } else {
         this.logger.info('No handler for webhook event', { 
@@ -55,13 +83,17 @@ export class WebhookHandler {
 
       return { received: true };
     } catch (error) {
-      this.logger.error('Webhook processing failed', error);
+      this.logger.error('Webhook processing failed', {
+        error: error.message,
+        eventId: event?.id,
+        eventType: event?.type
+      });
       throw error;
     }
   }
 
   /**
-   * Handle subscription created
+   * SECURITY FIX: Handle subscription created with atomic operations
    */
   async handleSubscriptionCreated(event) {
     const subscription = event.data.object;
@@ -78,24 +110,29 @@ export class WebhookHandler {
         });
         return;
       }
+      
+      const plan = this.getPlanFromPriceId(subscription.items.data[0].price.id);
+      
+      // SECURITY FIX: Perform atomic transaction for subscription + credits
+      await this.executeAtomicOperation(async (session) => {
+        // Update workspace with subscription info
+        await this.billingManager.updateWorkspaceSubscription(workspace._id, {
+          subscriptionId: subscription.id,
+          status: subscription.status,
+          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+          plan,
+        }, session);
 
-      // Update workspace with subscription info
-      await this.billingManager.updateWorkspaceSubscription(workspace._id, {
-        subscriptionId: subscription.id,
-        status: subscription.status,
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-        plan: this.getPlanFromPriceId(subscription.items.data[0].price.id),
+        // Grant initial credits if active
+        if (subscription.status === 'active') {
+          await this.creditManager.updateMonthlyCredits(workspace._id, plan, session);
+        }
       });
-
-      // Grant initial credits if active
-      if (subscription.status === 'active') {
-        const plan = this.getPlanFromPriceId(subscription.items.data[0].price.id);
-        await this.creditManager.updateMonthlyCredits(workspace._id, plan);
-      }
 
       this.logger.info('Subscription created', { 
         workspaceId: workspace._id,
-        subscriptionId: subscription.id 
+        subscriptionId: subscription.id,
+        plan 
       });
     } catch (error) {
       this.logger.error('Failed to handle subscription created', error);
@@ -304,7 +341,7 @@ export class WebhookHandler {
   }
 
   /**
-   * Handle checkout session completed
+   * SECURITY FIX: Handle checkout session completed with race condition protection
    */
   async handleCheckoutCompleted(event) {
     const session = event.data.object;
@@ -324,22 +361,42 @@ export class WebhookHandler {
           const workspaceId = metadata.workspaceId;
           const creditAmount = parseInt(metadata.credits);
           
-          // Add purchased credits
-          await this.creditManager.addCredits(
-            workspaceId,
-            creditAmount,
-            'purchase',
-            {
-              sessionId: session.id,
-              paymentIntentId: session.payment_intent,
-              amount: session.amount_total,
-            }
-          );
+          // SECURITY FIX: Validate metadata
+          if (!workspaceId || !creditAmount || creditAmount <= 0) {
+            throw new Error('Invalid credit purchase metadata');
+          }
+          
+          // SECURITY FIX: Use distributed locking for credit addition
+          const lockKey = `credit_purchase_lock:${session.id}`;
+          const lockToken = crypto.randomUUID();
+          
+          const lockAcquired = await this.creditManager.acquireLock(lockKey, lockToken, 10000);
+          if (!lockAcquired) {
+            throw new Error('Failed to acquire credit purchase lock');
+          }
+          
+          try {
+            // Add purchased credits atomically
+            await this.creditManager.addCredits(
+              workspaceId,
+              creditAmount,
+              'purchase',
+              {
+                sessionId: session.id,
+                paymentIntentId: session.payment_intent,
+                amount: session.amount_total,
+                timestamp: new Date()
+              }
+            );
 
-          this.logger.info('Credits purchased', { 
-            workspaceId,
-            credits: creditAmount 
-          });
+            this.logger.info('Credits purchased', { 
+              workspaceId,
+              credits: creditAmount,
+              sessionId: session.id 
+            });
+          } finally {
+            await this.creditManager.releaseLock(lockKey, lockToken);
+          }
         }
       }
     } catch (error) {
@@ -436,4 +493,10 @@ export class WebhookHandler {
     
     return priceMapping[priceId] || 'free';
   }
-}
+  
+  // SECURITY FIX: New security methods
+  
+  /**
+   * Check if event has already been processed (idempotency)
+   */
+  async checkIdempotency(eventId) {\n    if (!this.redisClient) {\n      // Fallback to in-memory check\n      return this.processedEvents.has(eventId);\n    }\n    \n    try {\n      const exists = await this.redisClient.exists(`webhook_processed:${eventId}`);\n      return exists === 1;\n    } catch (error) {\n      this.logger.error('Idempotency check failed', error);\n      // Fallback to in-memory\n      return this.processedEvents.has(eventId);\n    }\n  }\n  \n  /**\n   * Mark event as processed\n   */\n  async markEventProcessed(eventId) {\n    if (!this.redisClient) {\n      // Fallback to in-memory tracking\n      this.processedEvents.add(eventId);\n      // Clean up old events periodically\n      if (this.processedEvents.size > 1000) {\n        this.processedEvents.clear();\n      }\n      return;\n    }\n    \n    try {\n      // Store in Redis with 24 hour expiry\n      await this.redisClient.setex(`webhook_processed:${eventId}`, 86400, Date.now());\n    } catch (error) {\n      this.logger.error('Failed to mark event as processed', error);\n      // Fallback to in-memory\n      this.processedEvents.add(eventId);\n    }\n  }\n  \n  /**\n   * Check if event type requires critical locking\n   */\n  isCriticalEvent(eventType) {\n    const criticalEvents = [\n      'customer.subscription.created',\n      'customer.subscription.updated',\n      'customer.subscription.deleted',\n      'invoice.payment_succeeded',\n      'checkout.session.completed'\n    ];\n    \n    return criticalEvents.includes(eventType);\n  }\n  \n  /**\n   * Process webhook with distributed locking\n   */\n  async processWithLocking(event, handler) {\n    const lockKey = `webhook_lock:${event.type}:${event.data.object.id || event.id}`;\n    const lockToken = crypto.randomUUID();\n    \n    // Try to acquire lock for 30 seconds\n    const lockAcquired = await this.acquireLock(lockKey, lockToken, 30000);\n    if (!lockAcquired) {\n      throw new Error(`Failed to acquire lock for webhook ${event.type}`);\n    }\n    \n    try {\n      await handler(event);\n    } finally {\n      await this.releaseLock(lockKey, lockToken);\n    }\n  }\n  \n  /**\n   * Acquire distributed lock\n   */\n  async acquireLock(key, token, ttlMs = 5000) {\n    if (!this.redisClient) return true; // Fallback if Redis not available\n    \n    try {\n      const result = await this.redisClient.set(\n        key,\n        token,\n        'PX', ttlMs,\n        'NX'\n      );\n      return result === 'OK';\n    } catch (error) {\n      this.logger.error('Failed to acquire lock', error);\n      return false;\n    }\n  }\n  \n  /**\n   * Release distributed lock\n   */\n  async releaseLock(key, token) {\n    if (!this.redisClient) return;\n    \n    try {\n      // Use Lua script for atomic check-and-delete\n      const script = `\n        if redis.call(\"get\", KEYS[1]) == ARGV[1] then\n          return redis.call(\"del\", KEYS[1])\n        else\n          return 0\n        end\n      `;\n      await this.redisClient.eval(script, 1, key, token);\n    } catch (error) {\n      this.logger.error('Failed to release lock', error);\n    }\n  }\n  \n  /**\n   * Execute operation within atomic MongoDB transaction\n   */\n  async executeAtomicOperation(operation) {\n    const session = this.billingManager.mongoClient.startSession();\n    \n    try {\n      session.startTransaction();\n      \n      await operation(session);\n      \n      await session.commitTransaction();\n    } catch (error) {\n      await session.abortTransaction();\n      throw error;\n    } finally {\n      session.endSession();\n    }\n  }\n}

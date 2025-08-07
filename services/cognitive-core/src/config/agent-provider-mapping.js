@@ -14,6 +14,10 @@
  * - Llama (local): Infrastructure cost only (~$0.0001/1K tokens)
  */
 
+const { Logger } = require('@ux-flow/common');
+
+const logger = new Logger('agent-provider-mapping');
+
 module.exports = {
   // Agent-specific provider preferences
   agents: {
@@ -366,7 +370,7 @@ function getProviderForAgent(agentName, context = {}) {
   const agentConfig = config.agents[agentName];
   
   if (!agentConfig) {
-    console.warn(`No configuration for agent: ${agentName}`);
+    logger.warn('No configuration found for agent', { agentName });
     return 'gemini'; // Default fallback
   }
 

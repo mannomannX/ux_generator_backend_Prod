@@ -372,6 +372,8 @@ const service = new CognitiveCoreService();
 service.initialize()
   .then(() => service.start())
   .catch((error) => {
-    console.error('Failed to start Cognitive Core Service:', error);
+    // Use a basic logger instance since the service hasn't initialized yet
+    const logger = new Logger('cognitive-core-startup');
+    logger.error('Failed to start Cognitive Core Service', error);
     process.exit(1);
   });

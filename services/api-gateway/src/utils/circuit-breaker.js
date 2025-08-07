@@ -5,6 +5,9 @@
 import CircuitBreaker from 'opossum';
 import axios from 'axios';
 import config from '../config/index.js';
+import { Logger } from '@ux-flow/common';
+
+const logger = new Logger('circuit-breaker');
 
 // Circuit breaker states
 const STATES = {
@@ -87,7 +90,7 @@ export const getCircuitBreaker = (serviceName, options = {}) => {
 const setupEventListeners = (breaker, serviceName) => {
   // Circuit opened
   breaker.on('open', () => {
-    console.error(`[Circuit Breaker] ${serviceName} circuit opened`);
+    logger.error(`Circuit breaker opened`, { service: serviceName });
     breaker.stats.state = STATES.OPEN;
     breaker.stats.lastStateChange = new Date();
     
@@ -103,14 +106,14 @@ const setupEventListeners = (breaker, serviceName) => {
 
   // Circuit half-opened
   breaker.on('halfOpen', () => {
-    console.warn(`[Circuit Breaker] ${serviceName} circuit half-opened`);
+    logger.warn(`Circuit breaker half-opened`, { service: serviceName });
     breaker.stats.state = STATES.HALF_OPEN;
     breaker.stats.lastStateChange = new Date();
   });
 
   // Circuit closed
   breaker.on('close', () => {
-    console.info(`[Circuit Breaker] ${serviceName} circuit closed`);
+    logger.info(`Circuit breaker closed`, { service: serviceName });
     breaker.stats.state = STATES.CLOSED;
     breaker.stats.lastStateChange = new Date();
   });
@@ -128,7 +131,7 @@ const setupEventListeners = (breaker, serviceName) => {
     breaker.stats.failures++;
     updateLatencyPercentiles(breaker.stats, latency);
     
-    console.error(`[Circuit Breaker] ${serviceName} request failed:`, error.message);
+    logger.error(`Circuit breaker request failed`, { service: serviceName, error: error.message });
   });
 
   // Request timeout
@@ -136,7 +139,7 @@ const setupEventListeners = (breaker, serviceName) => {
     breaker.stats.requests++;
     breaker.stats.timeouts++;
     
-    console.error(`[Circuit Breaker] ${serviceName} request timeout after ${latency}ms`);
+    logger.error(`Circuit breaker request timeout`, { service: serviceName, latency });
   });
 
   // Fallback executed
@@ -151,7 +154,7 @@ const setupEventListeners = (breaker, serviceName) => {
 
   // Health check performed
   breaker.on('healthCheckFailed', (error) => {
-    console.error(`[Circuit Breaker] ${serviceName} health check failed:`, error.message);
+    logger.error(`Circuit breaker health check failed`, { service: serviceName, error: error.message });
   });
 };
 
@@ -266,7 +269,7 @@ export const circuitBreakerMiddleware = (serviceName, serviceUrl) => {
       }
 
       // Other errors
-      console.error(`[Circuit Breaker] Error calling ${serviceName}:`, error);
+      logger.error(`Circuit breaker call error`, { service: serviceName }, error);
       
       return res.status(error.response?.status || 500).json({
         error: 'Service Error',
@@ -433,7 +436,7 @@ const setInCache = (key, data, ttl) => {
 // Alert sending function (integrate with your alerting system)
 const sendAlert = async (alert) => {
   // Log the alert
-  console.error('[ALERT]', alert);
+  logger.error('Circuit breaker alert', { alert });
   
   // In production, integrate with:
   // - PagerDuty

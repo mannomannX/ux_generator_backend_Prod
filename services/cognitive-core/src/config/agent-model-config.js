@@ -6,6 +6,10 @@
  * with explicit manual configuration.
  */
 
+const { Logger } = require('@ux-flow/common');
+
+const logger = new Logger('agent-model-config');
+
 module.exports = {
   // Configuration version for tracking changes
   version: '1.0.0',
@@ -407,7 +411,7 @@ module.exports = {
         provider: config.provider
       };
     } catch (error) {
-      console.error('Error calculating cost:', error);
+      logger.error('Error calculating agent cost', error);
       return null;
     }
   }

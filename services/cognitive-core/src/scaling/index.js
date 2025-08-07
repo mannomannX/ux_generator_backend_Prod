@@ -18,6 +18,9 @@ const AdaptiveCostOptimizer = require('./adaptive-cost-optimizer');
 const StreamOptimizer = require('./stream-optimizer');
 const ProviderQualityTracker = require('./provider-quality-tracker');
 const agentProviderMapping = require('../config/agent-provider-mapping');
+const { Logger } = require('@ux-flow/common');
+
+const logger = new Logger('ai-scaling-system');
 
 class AIScalingSystem {
   constructor(config = {}, logger = console) {
@@ -100,7 +103,7 @@ class AIScalingSystem {
     // Cost optimizer events
     if (this.components.costOptimizer) {
       this.components.costOptimizer.on('budget-alert', (alert) => {
-        console.warn('💰 Budget Alert:', alert);
+        logger.warn('Budget alert triggered', { alertType: alert.type || 'budget', severity: alert.severity || 'medium' });
         this.handleBudgetAlert(alert);
       });
 
@@ -112,7 +115,7 @@ class AIScalingSystem {
     // Provider pool events
     if (this.components.providerPool) {
       this.components.providerPool.on('circuit-opened', (providerId) => {
-        console.error(`⚠️ Circuit breaker opened for ${providerId}`);
+        logger.error('Circuit breaker opened for provider', { providerId });
       });
     }
   }
@@ -198,7 +201,7 @@ class AIScalingSystem {
       };
 
     } catch (error) {
-      console.error('AI request failed:', error);
+      logger.error('AI request failed', error);
       
       // Try fallback providers
       const fallbackResponse = await this.tryFallbackProviders(request, error);
@@ -333,7 +336,7 @@ class AIScalingSystem {
           originalError: originalError.message
         };
       } catch (error) {
-        console.error(`Fallback ${fallbackProvider} failed:`, error.message);
+        logger.error('Fallback provider failed', { fallbackProvider, error: error.message });
         continue;
       }
     }

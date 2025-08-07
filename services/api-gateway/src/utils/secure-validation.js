@@ -75,7 +75,7 @@ export function sanitizeInput(input, maxLength = 1000) {
     sanitized = sanitized.substring(0, maxLength);
   }
   
-  // Remove MongoDB operators
+  // SECURITY FIX: Complete NoSQL injection patterns including dangerous operators
   const dangerousPatterns = [
     /\$where/gi,
     /\$regex/gi,
@@ -87,8 +87,50 @@ export function sanitizeInput(input, maxLength = 1000) {
     /\$geoNear/gi,
     /\$near/gi,
     /\$function/gi,
-    /\.\$\[/g,  // Array operators
-    /\$\[/g,    // Positional operators
+    /\$eval/gi,           // Server-side JavaScript execution
+    /\$javascript/gi,     // JavaScript execution
+    /\$accumulator/gi,    // Custom accumulator functions
+    /\$let/gi,            // Variable binding
+    /\$map/gi,            // Array mapping with expressions
+    /\$reduce/gi,         // Array reduction operations
+    /\$filter/gi,         // Array filtering with expressions
+    /\$switch/gi,         // Conditional expressions
+    /\$cond/gi,           // Conditional expressions
+    /\$ifNull/gi,         // Null condition expressions
+    /\$dateFromString/gi, // Date parsing expressions
+    /\$objectToArray/gi,  // Object manipulation
+    /\$arrayToObject/gi,  // Array manipulation
+    /\$mergeObjects/gi,   // Object merging
+    /\$replaceAll/gi,     // String replacement operations
+    /\$split/gi,          // String splitting operations
+    /\$trim/gi,           // String trimming operations
+    /\$group/gi,          // Aggregation grouping
+    /\$project/gi,        // Field projection
+    /\$unwind/gi,         // Array unwinding
+    /\$lookup/gi,         // Collection joins
+    /\$graphLookup/gi,    // Recursive lookups
+    /\$facet/gi,          // Multi-faceted aggregation
+    /\$bucket/gi,         // Bucketing operations
+    /\$sample/gi,         // Random sampling
+    /\$unionWith/gi,      // Union operations
+    /\$merge/gi,          // Output merge operations
+    /\$out/gi,            // Output operations
+    /\$addFields/gi,      // Field addition operations
+    /\$set/gi,            // Field setting operations
+    /\$unset/gi,          // Field removal operations
+    /\$replaceRoot/gi,    // Root replacement operations
+    /\$replaceWith/gi,    // Document replacement operations
+    /\.\$\[/g,            // Array operators
+    /\$\[/g,              // Positional operators
+    /\$slice/gi,          // Array slicing
+    /\$push/gi,           // Array push operations
+    /\$pull/gi,           // Array pull operations
+    /\$pullAll/gi,        // Array pull all operations
+    /\$pop/gi,            // Array pop operations
+    /\$addToSet/gi,       // Add to set operations
+    /\$each/gi,           // Each modifier
+    /\$sort/gi,           // Sort operations in updates
+    /\$position/gi,       // Position modifier
   ];
   
   for (const pattern of dangerousPatterns) {
@@ -256,12 +298,55 @@ export function sanitizeObject(obj, maxDepth = 3, currentDepth = 0) {
   }
   
   const sanitized = {};
+  // SECURITY FIX: Complete dangerous keys list including all MongoDB operators
   const dangerousKeys = [
     '$where',
     '$regex', 
     '$options',
     '$expr',
     '$function',
+    '$eval',
+    '$javascript',
+    '$accumulator',
+    '$let',
+    '$map',
+    '$reduce',
+    '$filter',
+    '$switch',
+    '$cond',
+    '$ifNull',
+    '$dateFromString',
+    '$objectToArray',
+    '$arrayToObject',
+    '$mergeObjects',
+    '$replaceAll',
+    '$split',
+    '$trim',
+    '$group',
+    '$project',
+    '$unwind',
+    '$lookup',
+    '$graphLookup',
+    '$facet',
+    '$bucket',
+    '$sample',
+    '$unionWith',
+    '$merge',
+    '$out',
+    '$addFields',
+    '$set',
+    '$unset',
+    '$replaceRoot',
+    '$replaceWith',
+    '$slice',
+    '$push',
+    '$pull',
+    '$pullAll',
+    '$pop',
+    '$addToSet',
+    '$each',
+    '$sort',
+    '$position',
     '__proto__',
     'constructor',
     'prototype'

@@ -2,7 +2,9 @@
 // SERVICES/KNOWLEDGE-SERVICE/src/routes/documents.js
 // ==========================================
 import express from 'express';
-import { MongoClient } from '@ux-flow/common';
+import { MongoClient, Logger } from '@ux-flow/common';
+
+const logger = new Logger('documents-route');
 
 const router = express.Router();
 
@@ -631,7 +633,7 @@ router.post('/bulk', async (req, res) => {
             );
           } catch (error) {
             // Continue with other deletions even if one fails
-            console.warn(`Failed to delete document ${documentId} from knowledge base:`, error);
+            logger.warn('Failed to delete document from knowledge base', { documentType: 'knowledge_document' }, error);
           }
         }
 

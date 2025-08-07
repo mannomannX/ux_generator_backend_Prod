@@ -146,17 +146,54 @@ class ApiGatewayService {
     // Initialize security logger
     this.securityLogger = new SecurityLogger(this.logger, this.redisClient, this.mongoClient);
     
-    // Security
+    // SECURITY FIX: Enhanced security headers configuration
     this.app.use(helmet({
+      // Content Security Policy - removing unsafe-inline
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'", "'strict-dynamic'"], // Removed 'unsafe-inline', added 'strict-dynamic' for modern browsers
+          styleSrc: ["'self'", "'sha256-{hash-will-be-generated}'"], // Removed 'unsafe-inline', use hash-based CSP for specific styles
           imgSrc: ["'self'", "data:", "https:"],
           connectSrc: ["'self'", "ws:", "wss:"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"], // Prevent object/embed attacks
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"], // Prevent clickjacking
+          baseUri: ["'self'"], // Prevent base tag attacks
+          formAction: ["'self'"], // Prevent form hijacking
         },
+        reportUri: '/csp-report',
       },
+      // HTTP Strict Transport Security
+      hsts: {
+        maxAge: 31536000, // 1 year
+        includeSubDomains: true,
+        preload: true
+      },
+      // Prevent MIME type sniffing
+      noSniff: true,
+      // X-Frame-Options
+      frameguard: { action: 'deny' },
+      // X-XSS-Protection
+      xssFilter: true,
+      // Referrer Policy
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      // Permissions Policy (Feature Policy replacement)
+      permissionsPolicy: {
+        features: {
+          geolocation: ["'none'"],
+          microphone: ["'none'"],
+          camera: ["'none'"],
+          payment: ["'none'"],
+          usb: ["'none'"],
+          vr: ["'none'"],
+          accelerometer: ["'none'"],
+          gyroscope: ["'none'"],
+          magnetometer: ["'none'"],
+          clipboard: ["'self'"]
+        }
+      }
     }));
 
     // CORS
@@ -197,6 +234,23 @@ class ApiGatewayService {
   setupRoutes() {
     // Health check (no auth required)
     this.app.use('/health', healthRoutes);
+
+    // SECURITY FIX: CSP Report endpoint for monitoring violations
+    this.app.post('/csp-report', express.json({ type: 'application/csp-report' }), (req, res) => {
+      const report = req.body;
+      if (report && report['csp-report']) {
+        this.securityLogger.logSecurityEvent('CSP_VIOLATION', {
+          violatedDirective: report['csp-report']['violated-directive'],
+          blockedUri: report['csp-report']['blocked-uri'],
+          documentUri: report['csp-report']['document-uri'],
+          sourceFile: report['csp-report']['source-file'],
+          lineNumber: report['csp-report']['line-number'],
+          userAgent: req.get('User-Agent'),
+          ip: req.ip
+        });
+      }
+      res.status(204).end();
+    });
 
     // API versioning
     const v1Router = express.Router();
@@ -333,6 +387,8 @@ const service = new ApiGatewayService();
 service.initialize()
   .then(() => service.start())
   .catch((error) => {
-    console.error('Failed to start API Gateway Service:', error);
+    // Use a basic logger instance since the service hasn't initialized yet
+    const logger = new Logger('api-gateway-startup');
+    logger.error('Failed to start API Gateway Service', error);
     process.exit(1);
   });

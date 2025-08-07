@@ -54,15 +54,29 @@ export class StripeService {
   }
 
   /**
-   * Verify webhook signature for security
+   * SECURITY FIX: Enhanced webhook signature verification 
    */
-  async verifyWebhookSignature(payload, signature, secret) {
+  verifyWebhookSignature(payload, signature, secret) {
     try {
+      // SECURITY FIX: Validate inputs
+      if (!payload) {
+        throw new Error('Webhook payload is required');
+      }
+      if (!signature) {
+        throw new Error('Webhook signature is required');
+      }
+      
+      // SECURITY FIX: Use correct webhook secret
+      const webhookSecret = secret || this.webhookSecret;
+      if (!webhookSecret) {
+        throw new Error('Webhook secret not configured');
+      }
+      
       // Stripe requires the raw body for signature verification
       const event = this.stripe.webhooks.constructEvent(
         payload,
         signature,
-        secret || this.config.webhookSecret
+        webhookSecret
       );
       
       // Additional validation
@@ -70,13 +84,27 @@ export class StripeService {
         throw new Error('Invalid webhook event structure');
       }
       
-      // Check event timestamp to prevent replay attacks
+      // SECURITY FIX: Enhanced timestamp validation
       const tolerance = 300; // 5 minutes
-      const timestamp = event.created || Math.floor(Date.now() / 1000);
+      const eventTimestamp = event.created;
       const currentTime = Math.floor(Date.now() / 1000);
       
-      if (Math.abs(currentTime - timestamp) > tolerance) {
+      if (!eventTimestamp) {
+        throw new Error('Webhook event missing timestamp');
+      }
+      
+      if (Math.abs(currentTime - eventTimestamp) > tolerance) {
+        this.logger.warn('Webhook timestamp outside tolerance window', {
+          eventTime: new Date(eventTimestamp * 1000).toISOString(),
+          currentTime: new Date(currentTime * 1000).toISOString(),
+          difference: Math.abs(currentTime - eventTimestamp)
+        });
         throw new Error('Webhook timestamp outside tolerance window');
+      }
+      
+      // SECURITY FIX: Validate event data structure
+      if (!event.data || !event.data.object) {
+        throw new Error('Invalid webhook event data structure');
       }
       
       return event;

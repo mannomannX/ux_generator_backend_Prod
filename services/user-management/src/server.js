@@ -289,6 +289,8 @@ const service = new UserManagementService();
 service.initialize()
   .then(() => service.start())
   .catch((error) => {
-    console.error('Failed to start User Management Service:', error);
+    // Use a basic logger instance since the service hasn't initialized yet
+    const logger = new Logger('user-management-startup');
+    logger.error('Failed to start User Management Service', error);
     process.exit(1);
   });

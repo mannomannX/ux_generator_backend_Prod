@@ -47,11 +47,15 @@ export class ApiKeyManager {
 
   /**
    * Encrypt API key
+   * SECURITY FIX: Replaced deprecated crypto.createCipher with secure implementation
    */
   encryptApiKey(apiKey) {
     try {
+      // Generate secure random IV for each encryption
       const iv = crypto.randomBytes(12);
-      const cipher = crypto.createCipher('aes-256-gcm', this.config.encryptionKey);
+      
+      // Use secure createCipherGCM with proper IV
+      const cipher = crypto.createCipherGCM('aes-256-gcm', this.config.encryptionKey, iv);
       cipher.setAAD(Buffer.from('api-key'));
       
       let encrypted = cipher.update(apiKey, 'utf8', 'hex');
@@ -62,7 +66,8 @@ export class ApiKeyManager {
       return {
         encrypted,
         iv: iv.toString('hex'),
-        authTag: authTag.toString('hex')
+        authTag: authTag.toString('hex'),
+        algorithm: 'aes-256-gcm' // Version tracking for future upgrades
       };
     } catch (error) {
       this.logger.error('API key encryption failed', error);
@@ -72,12 +77,22 @@ export class ApiKeyManager {
 
   /**
    * Decrypt API key
+   * SECURITY FIX: Replaced deprecated crypto.createDecipher with secure implementation
    */
   decryptApiKey(encryptedData) {
     try {
-      const { encrypted, iv, authTag } = encryptedData;
+      const { encrypted, iv, authTag, algorithm = 'aes-256-gcm' } = encryptedData;
       
-      const decipher = crypto.createDecipher('aes-256-gcm', this.config.encryptionKey);
+      // Validate required fields
+      if (!encrypted || !iv || !authTag) {
+        throw new Error('Missing required encryption fields');
+      }
+      
+      // Convert IV back to buffer
+      const ivBuffer = Buffer.from(iv, 'hex');
+      
+      // Use secure createDecipherGCM with proper IV
+      const decipher = crypto.createDecipherGCM(algorithm, this.config.encryptionKey, ivBuffer);
       decipher.setAAD(Buffer.from('api-key'));
       decipher.setAuthTag(Buffer.from(authTag, 'hex'));
       

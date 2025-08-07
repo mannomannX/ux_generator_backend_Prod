@@ -297,6 +297,8 @@ const service = new BillingService();
 service.initialize()
   .then(() => service.start())
   .catch((error) => {
-    console.error('Failed to start Billing Service:', error);
+    // Use a basic logger instance since the service hasn't initialized yet
+    const logger = new Logger('billing-service-startup');
+    logger.error('Failed to start Billing Service', error);
     process.exit(1);
   });

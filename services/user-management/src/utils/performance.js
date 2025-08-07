@@ -4,6 +4,9 @@
  */
 
 import crypto from 'crypto';
+import { Logger } from '@ux-flow/common';
+
+const logger = new Logger('performance-utils');
 
 /**
  * LRU Cache implementation
@@ -192,7 +195,7 @@ export class BatchProcessor {
     try {
       await this.processFn(items);
     } catch (error) {
-      console.error('Batch processing failed:', error);
+      logger.error('Batch processing failed', error);
       // Re-add items to batch for retry
       this.batch.unshift(...items);
     }
@@ -314,7 +317,7 @@ export class ConnectionPool {
         await connection.close();
       }
     } catch (error) {
-      console.error('Error closing connection:', error);
+      logger.error('Connection pool error closing connection', error);
     }
   }
 

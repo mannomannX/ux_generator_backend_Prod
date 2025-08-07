@@ -354,7 +354,7 @@ export class ComprehensiveValidator {
   }
   
   /**
-   * Validate and sanitize MongoDB query to prevent injection
+   * SECURITY FIX: Enhanced MongoDB query sanitization with ReDoS protection
    */
   sanitizeMongoQuery(query) {
     if (typeof query !== 'object' || query === null) {
@@ -362,7 +362,8 @@ export class ComprehensiveValidator {
     }
     
     const sanitized = {};
-    const allowedOperators = ['$and', '$or', '$in', '$nin', '$gt', '$gte', '$lt', '$lte', '$ne', '$eq', '$exists', '$regex'];
+    // SECURITY FIX: Removed $regex from allowed operators to prevent ReDoS attacks
+    const allowedOperators = ['$and', '$or', '$in', '$nin', '$gt', '$gte', '$lt', '$lte', '$ne', '$eq', '$exists'];
     
     for (const [key, value] of Object.entries(query)) {
       // Block dangerous MongoDB operators
@@ -372,6 +373,11 @@ export class ComprehensiveValidator {
         }
       }
       
+      // SECURITY FIX: Special handling for regex operations to prevent ReDoS
+      if (key === '$regex' || (typeof value === 'object' && value !== null && '$regex' in value)) {
+        throw new ValidationError('Direct regex operations are not allowed for security reasons');
+      }
+      
       // Check for dangerous patterns in values
       if (typeof value === 'string') {
         for (const pattern of this.dangerousPatterns) {
@@ -379,6 +385,12 @@ export class ComprehensiveValidator {
             throw new ValidationError('Query contains potentially dangerous content');
           }
         }
+        
+        // SECURITY FIX: Enhanced validation for potential regex patterns
+        if (this.containsPotentialReDoSPattern(value)) {
+          throw new ValidationError('Query contains patterns that could cause performance issues');
+        }
+        
         // Escape special MongoDB characters
         sanitized[key] = value.replace(/\$/g, '\\$');
       } else if (typeof value === 'object' && value !== null) {
@@ -390,6 +402,78 @@ export class ComprehensiveValidator {
     }
     
     return sanitized;
+  }
+  
+  /**
+   * SECURITY FIX: Check for potential ReDoS patterns
+   */
+  containsPotentialReDoSPattern(input) {
+    // Patterns that could cause exponential backtracking
+    const redosPatterns = [
+      // Nested quantifiers
+      /(\*\+|\+\*|\*\*|\+\+|\?\+|\*\?|\+\?)/,
+      // Catastrophic backtracking patterns  
+      /(\.{2,}[\*\+])/,
+      // Alternation with overlapping patterns
+      /\([^)]*\|[^)]*\)[\*\+]/,
+      // Long repetition patterns
+      /.{30,}[\*\+]/,
+      // Nested groups with quantifiers
+      /\([^)]*[\*\+][^)]*\)[\*\+]/,
+      // Excessive character classes
+      /\[[^\]]{20,}\]/
+    ];
+    
+    for (const pattern of redosPatterns) {
+      try {
+        if (pattern.test(input)) {
+          return true;
+        }
+      } catch (error) {
+        // If testing the pattern itself causes issues, consider it dangerous
+        return true;
+      }
+    }
+    
+    // Check for excessive length or complexity
+    if (input.length > 200) {
+      return true;
+    }
+    
+    // Count quantifiers and groups
+    const quantifierCount = (input.match(/[\*\+\?]/g) || []).length;
+    const groupCount = (input.match(/\(/g) || []).length;
+    
+    if (quantifierCount > 10 || groupCount > 5) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * SECURITY FIX: Safe regex creation with complexity limits
+   */
+  createSafeSearchRegex(searchTerm, maxLength = 100) {
+    if (!searchTerm || typeof searchTerm !== 'string') {
+      return null;
+    }
+    
+    // Limit length to prevent complexity attacks
+    if (searchTerm.length > maxLength) {
+      searchTerm = searchTerm.substring(0, maxLength);
+    }
+    
+    // Check for ReDoS patterns before processing
+    if (this.containsPotentialReDoSPattern(searchTerm)) {
+      throw new ValidationError('Search term contains patterns that could cause performance issues');
+    }
+    
+    // Escape all special regex characters
+    const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Return a simple, bounded search pattern
+    return new RegExp(escaped, 'i');
   }
   
   /**
@@ -455,37 +539,212 @@ export class ComprehensiveValidator {
   }
 
   /**
-   * Perform additional security checks on uploaded files
+   * SECURITY FIX: Enhanced file security checks with comprehensive scanning
    */
   performFileSecurityChecks(file) {
-    // Check for executable files disguised as images
+    // Enhanced executable detection with more signatures
     const executableSignatures = [
-      Buffer.from([0x4D, 0x5A]), // PE executable
+      Buffer.from([0x4D, 0x5A]), // PE executable (MZ)
       Buffer.from([0x7F, 0x45, 0x4C, 0x46]), // ELF executable
       Buffer.from([0xFE, 0xED, 0xFA]), // Mach-O executable
+      Buffer.from([0xCA, 0xFE, 0xBA, 0xBE]), // Java class file
+      Buffer.from([0x50, 0x4B, 0x03, 0x04]), // ZIP/Office (potential macro)
+      Buffer.from([0x50, 0x4B, 0x05, 0x06]), // ZIP empty archive
+      Buffer.from([0x50, 0x4B, 0x07, 0x08]), // ZIP spanned archive
+      Buffer.from([0x52, 0x61, 0x72, 0x21]), // RAR archive
+      Buffer.from([0x37, 0x7A, 0xBC, 0xAF]), // 7-Zip archive
     ];
 
-    const fileHeader = file.buffer.slice(0, 10);
-    for (const signature of executableSignatures) {
-      if (fileHeader.indexOf(signature) !== -1) {
-        throw new ValidationError('File appears to be an executable');
+    // SECURITY FIX: Check multiple file header positions
+    const headerSizes = [4, 8, 16, 32];
+    for (const size of headerSizes) {
+      const fileHeader = file.buffer.slice(0, Math.min(file.buffer.length, size));
+      for (const signature of executableSignatures) {
+        if (fileHeader.indexOf(signature) !== -1) {
+          throw new ValidationError('File contains executable or archive signatures');
+        }
       }
     }
 
-    // Check for embedded scripts in image files
+    // SECURITY FIX: Enhanced script detection with full file scanning
     const scriptPatterns = [
-      /<script/i,
+      /<script[^>]*>/i,
       /javascript:/i,
       /vbscript:/i,
-      /onload=/i,
-      /onerror=/i
+      /data:text\/html/i,
+      /onload\s*=/i,
+      /onerror\s*=/i,
+      /onclick\s*=/i,
+      /onmouseover\s*=/i,
+      /<iframe[^>]*>/i,
+      /<object[^>]*>/i,
+      /<embed[^>]*>/i,
+      /eval\s*\(/i,
+      /document\.write/i,
+      /window\.location/i,
+      /\.innerHTML/i,
     ];
 
-    const fileContent = file.buffer.toString('utf8', 0, Math.min(file.buffer.length, 1024));
-    for (const pattern of scriptPatterns) {
-      if (pattern.test(fileContent)) {
-        throw new ValidationError('File contains potentially malicious content');
+    // SECURITY FIX: Scan entire file, not just first 1024 bytes
+    const maxScanSize = Math.min(file.buffer.length, 50 * 1024); // Scan up to 50KB
+    const scanChunkSize = 8192; // 8KB chunks
+    
+    for (let offset = 0; offset < maxScanSize; offset += scanChunkSize) {
+      const chunkEnd = Math.min(offset + scanChunkSize + 1024, maxScanSize); // Overlap for patterns at boundaries
+      const chunk = file.buffer.toString('utf8', offset, chunkEnd);
+      
+      for (const pattern of scriptPatterns) {
+        if (pattern.test(chunk)) {
+          throw new ValidationError(`File contains potentially malicious content at position ${offset}`);
+        }
       }
+    }
+
+    // SECURITY FIX: Entropy analysis to detect packed/encrypted malware
+    const entropy = this.calculateFileEntropy(file.buffer);
+    if (entropy > 7.5) {
+      this.logger.warn('File has high entropy - possible packed/encrypted content', {
+        entropy,
+        filename: file.originalname,
+        size: file.buffer.length
+      });
+      // Don't block high entropy files as they could be legitimate compressed images
+      // but log for monitoring
+    }
+
+    // SECURITY FIX: File structure validation based on claimed MIME type
+    this.validateFileStructure(file);
+
+    // SECURITY FIX: Additional malware indicators
+    this.checkMalwareIndicators(file);
+  }
+
+  /**
+   * SECURITY FIX: Calculate file entropy to detect packed/encrypted content
+   */
+  calculateFileEntropy(buffer) {
+    const frequencies = new Array(256).fill(0);
+    const sampleSize = Math.min(buffer.length, 32768); // Sample first 32KB for performance
+    
+    // Count byte frequencies
+    for (let i = 0; i < sampleSize; i++) {
+      frequencies[buffer[i]]++;
+    }
+    
+    // Calculate Shannon entropy
+    let entropy = 0;
+    for (const freq of frequencies) {
+      if (freq > 0) {
+        const probability = freq / sampleSize;
+        entropy -= probability * Math.log2(probability);
+      }
+    }
+    
+    return entropy;
+  }
+
+  /**
+   * SECURITY FIX: Validate file structure matches claimed MIME type
+   */
+  validateFileStructure(file) {
+    const mimeToSignature = {
+      'image/jpeg': [
+        Buffer.from([0xFF, 0xD8, 0xFF]), // JPEG start
+        Buffer.from([0xFF, 0xD9]) // JPEG end (should be at end of file)
+      ],
+      'image/png': [
+        Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) // PNG signature
+      ],
+      'image/gif': [
+        Buffer.from('GIF87a', 'ascii'), // GIF87a
+        Buffer.from('GIF89a', 'ascii')  // GIF89a
+      ],
+      'image/webp': [
+        Buffer.from('WEBP', 'ascii') // WEBP signature (at offset 8)
+      ]
+    };
+
+    const expectedSignatures = mimeToSignature[file.mimetype];
+    if (expectedSignatures) {
+      let validSignatureFound = false;
+      
+      for (const signature of expectedSignatures) {
+        if (file.mimetype === 'image/webp') {
+          // WEBP has RIFF header first, then WEBP at offset 8
+          if (file.buffer.slice(0, 4).toString('ascii') === 'RIFF' &&
+              file.buffer.slice(8, 12).toString('ascii') === 'WEBP') {
+            validSignatureFound = true;
+            break;
+          }
+        } else if (file.mimetype === 'image/jpeg' && signature.equals(Buffer.from([0xFF, 0xD9]))) {
+          // Check JPEG end marker at file end
+          const fileEnd = file.buffer.slice(-2);
+          if (fileEnd.equals(signature)) {
+            validSignatureFound = true;
+          }
+        } else {
+          // Check signature at file start
+          const fileStart = file.buffer.slice(0, signature.length);
+          if (fileStart.equals(signature)) {
+            validSignatureFound = true;
+            break;
+          }
+        }
+      }
+
+      if (!validSignatureFound) {
+        throw new ValidationError(`File signature doesn't match claimed MIME type: ${file.mimetype}`);
+      }
+    }
+  }
+
+  /**
+   * SECURITY FIX: Check for additional malware indicators
+   */
+  checkMalwareIndicators(file) {
+    // Check for suspicious metadata or comments
+    const suspiciousStrings = [
+      'autostart',
+      'autorun',
+      'cmd.exe',
+      'powershell',
+      'rundll32',
+      'regsvr32',
+      'mshta',
+      'wscript',
+      'cscript',
+      'certutil',
+      'bitsadmin',
+      'schtasks',
+      'at.exe',
+      'net.exe',
+      'base64',
+      'fromcharcode',
+      'unescape',
+      'activexobject'
+    ];
+
+    // Convert buffer to string for pattern matching (check more data)
+    const textContent = file.buffer.toString('ascii', 0, Math.min(file.buffer.length, 100 * 1024));
+    const lowerContent = textContent.toLowerCase();
+
+    for (const suspicious of suspiciousStrings) {
+      if (lowerContent.includes(suspicious.toLowerCase())) {
+        this.logger.warn('File contains suspicious strings', {
+          filename: file.originalname,
+          suspicious: suspicious,
+          mimetype: file.mimetype
+        });
+      }
+    }
+
+    // Check for unusual file size to content ratio (possible steganography)
+    if (file.mimetype.startsWith('image/') && file.buffer.length > 10 * 1024 * 1024) {
+      this.logger.warn('Large image file uploaded - possible steganography', {
+        filename: file.originalname,
+        size: file.buffer.length,
+        mimetype: file.mimetype
+      });
     }
   }
 

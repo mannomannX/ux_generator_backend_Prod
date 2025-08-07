@@ -3,6 +3,10 @@
  * Prevents stack trace exposure in production
  */
 
+import { Logger } from '@ux-flow/common';
+
+const logger = new Logger('error-handler');
+
 export class AppError extends Error {
   constructor(message, statusCode, code) {
     super(message);
@@ -217,7 +221,7 @@ export class ErrorLogger {
   sendToMonitoring(errorData) {
     // Implement integration with monitoring service (Sentry, Datadog, etc.)
     // This is a placeholder
-    console.error('Critical error detected:', errorData.message);
+    logger.error('Critical error detected', { errorCode: errorData.code, statusCode: errorData.statusCode });
   }
 }
 

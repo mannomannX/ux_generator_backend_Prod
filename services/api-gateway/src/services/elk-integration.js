@@ -528,7 +528,7 @@ export function createELKMiddleware(elkService) {
       // Log the request/response
       const responseTime = Date.now() - startTime;
       elkService.logHttpRequest(req, res, responseTime).catch(err => {
-        console.error('Failed to log to ELK', err);
+        this.logger?.error('Failed to log to ELK', err);
       });
       
       // Send metrics
@@ -551,7 +551,7 @@ export function createELKMiddleware(elkService) {
           }
         }
       ]).catch(err => {
-        console.error('Failed to send metrics to ELK', err);
+        this.logger?.error('Failed to send metrics to ELK', err);
       });
       
       return originalSend.call(this, data);

@@ -39,7 +39,7 @@ export class DataSanitizer {
       /(\bsp_\w+)/gi
     ];
     
-    // NoSQL injection patterns
+    // SECURITY FIX: Complete NoSQL injection patterns including dangerous operators
     this.nosqlPatterns = [
       /\$where/gi,
       /\$regex/gi,
@@ -60,7 +60,40 @@ export class DataSanitizer {
       /\$where.*function/gi,
       /mapReduce/gi,
       /aggregate/gi,
-      /findAndModify/gi
+      /findAndModify/gi,
+      // SECURITY FIX: Add missing dangerous operators
+      /\$function/gi,
+      /\$eval/gi,
+      /\$javascript/gi,
+      /\$accumulator/gi,
+      /\$expr/gi,
+      /\$jsonSchema/gi,
+      /\$merge/gi,
+      /\$out/gi,
+      /\$lookup/gi,
+      /\$graphLookup/gi,
+      /\$facet/gi,
+      /\$bucket/gi,
+      /\$bucketAuto/gi,
+      /\$sortByCount/gi,
+      /\$replaceWith/gi,
+      /\$replaceRoot/gi,
+      /ObjectId\s*\(/gi,
+      /new\s+ObjectId/gi,
+      /ISODate\s*\(/gi,
+      /RegExp\s*\(/gi,
+      /new\s+RegExp/gi,
+      /\$\$ROOT/gi,
+      /\$\$CURRENT/gi,
+      // Prevent code injection through aggregation
+      /\$addFields.*\$function/gi,
+      /\$project.*\$function/gi,
+      /\$match.*\$function/gi,
+      // Prevent shell command injection
+      /sh\s*\(/gi,
+      /bash\s*\(/gi,
+      /exec\s*\(/gi,
+      /system\s*\(/gi
     ];
   }
   

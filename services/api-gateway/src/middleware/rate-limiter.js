@@ -6,6 +6,9 @@ import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import { createClient } from 'redis';
 import config from '../config/index.js';
+import { Logger } from '@ux-flow/common';
+
+const logger = new Logger('rate-limiter');
 
 let redisClient = null;
 let isConnected = false;
@@ -83,7 +86,7 @@ function createRateLimiter(options) {
         sendCommand: (...args) => redisClient.sendCommand(args),
       });
     } catch (error) {
-      console.error(`Failed to create Redis store for ${name}, using memory store`, error);
+      logger.error(`Failed to create Redis store, using memory store`, { rateLimiterName: name }, error);
     }
   }
 
@@ -96,12 +99,12 @@ function createRateLimiter(options) {
     keyGenerator,
     handler,
     store,
+    // SECURITY FIX: Removed insecure rate limiting bypass
+    // The previous implementation allowed any client to bypass rate limiting
+    // by setting x-critical-operation header, which is a critical security vulnerability
     skip: (req) => {
-      // Skip rate limiting if Redis is down and this is a critical operation
-      if (!store && req.headers['x-critical-operation'] === 'true') {
-        req.logger?.warn('Rate limiting skipped due to Redis unavailability');
-        return true;
-      }
+      // No skipping allowed - rate limiting should always be enforced
+      // In-memory store will be used automatically when Redis is unavailable
       return false;
     }
   });

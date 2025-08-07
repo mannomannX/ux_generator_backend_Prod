@@ -20,13 +20,120 @@ class TokenManager {
     // JWT configuration
     this.jwtAlgorithm = process.env.JWT_ALGORITHM || 'HS256';
     this.jwtSecret = process.env.JWT_SECRET;
-    this.jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || this.jwtSecret;
+    
+    // SECURITY FIX: Require separate refresh token secret
+    this.jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
+    if (!this.jwtRefreshSecret) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('JWT_REFRESH_SECRET environment variable is required in production');
+      } else {
+        // Generate separate secret for development
+        this.jwtRefreshSecret = crypto.randomBytes(64).toString('hex');
+        this.logger.warn('Generated temporary refresh token secret - set JWT_REFRESH_SECRET in production');
+      }
+    }
+    
     this.jwtIssuer = process.env.JWT_ISSUER || 'ux-flow-engine';
     this.jwtAudience = process.env.JWT_AUDIENCE || 'ux-flow-users';
     
     if (!this.jwtSecret) {
-      this.logger.error('JWT_SECRET not configured');
+      throw new Error('JWT_SECRET environment variable is required');
     }
+    
+    // SECURITY FIX: Validate that secrets are different
+    if (this.jwtSecret === this.jwtRefreshSecret) {
+      throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be different for security');
+    }
+    
+    // SECURITY FIX: Validate JWT secret strength in production
+    this.validateSecretStrength(this.jwtSecret, 'JWT_SECRET');
+    this.validateSecretStrength(this.jwtRefreshSecret, 'JWT_REFRESH_SECRET');
+  }
+  
+  /**
+   * SECURITY FIX: Validate JWT secret strength and entropy
+   */
+  validateSecretStrength(secret, secretName) {
+    if (!secret || typeof secret !== 'string') {
+      throw new Error(`${secretName} must be a non-empty string`);
+    }
+    
+    // Minimum length requirements
+    const minLength = process.env.NODE_ENV === 'production' ? 64 : 32;
+    if (secret.length < minLength) {
+      throw new Error(`${secretName} must be at least ${minLength} characters long`);
+    }
+    
+    // Check for common weak patterns
+    const weakPatterns = [
+      /^(.)\1+$/, // All same character
+      /^(password|secret|key|token)/i, // Common words
+      /^(123|abc|qwe|test)/i, // Common sequences
+      /^(.{1,4})\1+$/, // Repeating short patterns
+    ];
+    
+    for (const pattern of weakPatterns) {
+      if (pattern.test(secret)) {
+        throw new Error(`${secretName} contains weak patterns and should be more random`);
+      }
+    }
+    
+    // Entropy validation for production
+    if (process.env.NODE_ENV === 'production') {
+      const entropy = this.calculateEntropy(secret);
+      const minEntropy = 4.5; // bits per character (reasonable for a good secret)
+      
+      if (entropy < minEntropy) {
+        this.logger.warn(`${secretName} has low entropy (${entropy.toFixed(2)} bits/char). Consider using a more random secret.`);
+      }
+      
+      // Character diversity requirements for production
+      const hasLowerCase = /[a-z]/.test(secret);
+      const hasUpperCase = /[A-Z]/.test(secret);
+      const hasNumbers = /\d/.test(secret);
+      const hasSpecialChars = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(secret);
+      
+      const charTypeCount = [hasLowerCase, hasUpperCase, hasNumbers, hasSpecialChars].filter(Boolean).length;
+      
+      if (charTypeCount < 3) {
+        this.logger.warn(`${secretName} should contain at least 3 different character types (lowercase, uppercase, numbers, special characters) for better security.`);
+      }
+    }
+    
+    // Check for common dictionary words or leaked secrets patterns
+    const suspiciousPatterns = [
+      /admin/i, /root/i, /default/i, /example/i, /sample/i, /demo/i,
+      /changeme/i, /replace/i, /temp/i, /dev/i, /stage/i, /prod/i
+    ];
+    
+    for (const pattern of suspiciousPatterns) {
+      if (pattern.test(secret)) {
+        this.logger.warn(`${secretName} contains suspicious patterns. Ensure it's not a default or placeholder value.`);
+        break;
+      }
+    }
+  }
+  
+  /**
+   * SECURITY FIX: Calculate Shannon entropy for secret strength assessment
+   */
+  calculateEntropy(str) {
+    const freq = {};
+    const len = str.length;
+    
+    // Calculate character frequency
+    for (let i = 0; i < len; i++) {
+      freq[str[i]] = (freq[str[i]] || 0) + 1;
+    }
+    
+    // Calculate entropy
+    let entropy = 0;
+    for (const char in freq) {
+      const p = freq[char] / len;
+      entropy -= p * Math.log2(p);
+    }
+    
+    return entropy;
   }
   
   /**

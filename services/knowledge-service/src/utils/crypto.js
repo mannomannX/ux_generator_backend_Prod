@@ -5,6 +5,9 @@
 
 import crypto from 'crypto';
 import { ErrorFactory } from './errors.js';
+import { Logger } from '@ux-flow/common';
+
+const logger = new Logger('crypto-utils');
 
 class CryptoManager {
   constructor(config = {}) {
@@ -220,7 +223,7 @@ class CryptoManager {
           decrypted[field] = this.decrypt(obj[field]);
         } catch (error) {
           // Log error but don't expose decryption failures
-          console.error(`Failed to decrypt field ${field}:`, error);
+          logger.error('Failed to decrypt field', { fieldType: 'sensitive_field' }, error);
           decrypted[field] = null;
         }
       }

@@ -172,7 +172,13 @@ class WebSocketManager {
         isAlive: true,
         messageCount: 0,
         bytesReceived: 0,
-        bytesSent: 0
+        bytesSent: 0,
+        // SECURITY FIX: Add bandwidth tracking for cumulative limits
+        bandwidthWindow: {
+          windowStart: Date.now(),
+          windowBytes: 0,
+          windowMessages: 0
+        }
       };
 
       // Store in maps
@@ -234,6 +240,18 @@ class WebSocketManager {
         clientInfo.isAlive = true;
         clientInfo.messageCount++;
         clientInfo.bytesReceived += data.length;
+
+        // SECURITY FIX: Check cumulative bandwidth limits
+        const bandwidthCheck = this.checkCumulativeBandwidth(clientInfo, data.length);
+        if (!bandwidthCheck.allowed) {
+          this.sendToClient(clientInfo.clientId, {
+            type: 'error',
+            code: 'BANDWIDTH_LIMIT',
+            message: bandwidthCheck.reason,
+            retryAfter: bandwidthCheck.retryAfter
+          });
+          return;
+        }
 
         // Check message rate limit
         const rateLimitCheck = await this.rateLimiter.checkMessage(
@@ -449,6 +467,51 @@ class WebSocketManager {
     const suspicious = ['$where', '$regex', 'function', 'constructor', '__proto__'];
     const json = JSON.stringify(obj);
     return suspicious.some(pattern => json.includes(pattern));
+  }
+
+  /**
+   * SECURITY FIX: Check cumulative bandwidth limits per connection
+   */
+  checkCumulativeBandwidth(clientInfo, messageSize) {
+    const now = Date.now();
+    const windowMs = 60000; // 1 minute window
+    const maxBytesPerWindow = 5 * 1024 * 1024; // 5MB per minute
+    const maxMessagesPerWindow = 1000; // 1000 messages per minute
+
+    // Reset window if expired
+    if (now - clientInfo.bandwidthWindow.windowStart > windowMs) {
+      clientInfo.bandwidthWindow = {
+        windowStart: now,
+        windowBytes: 0,
+        windowMessages: 0
+      };
+    }
+
+    // Add current message to window
+    clientInfo.bandwidthWindow.windowBytes += messageSize;
+    clientInfo.bandwidthWindow.windowMessages += 1;
+
+    // Check bandwidth limit
+    if (clientInfo.bandwidthWindow.windowBytes > maxBytesPerWindow) {
+      const remainingTime = Math.ceil((clientInfo.bandwidthWindow.windowStart + windowMs - now) / 1000);
+      return {
+        allowed: false,
+        reason: `Bandwidth limit exceeded (${Math.ceil(clientInfo.bandwidthWindow.windowBytes / 1024)}KB/min)`,
+        retryAfter: remainingTime
+      };
+    }
+
+    // Check message frequency limit
+    if (clientInfo.bandwidthWindow.windowMessages > maxMessagesPerWindow) {
+      const remainingTime = Math.ceil((clientInfo.bandwidthWindow.windowStart + windowMs - now) / 1000);
+      return {
+        allowed: false,
+        reason: `Message frequency limit exceeded (${clientInfo.bandwidthWindow.windowMessages}/min)`,
+        retryAfter: remainingTime
+      };
+    }
+
+    return { allowed: true };
   }
 
   isValidId(id) {

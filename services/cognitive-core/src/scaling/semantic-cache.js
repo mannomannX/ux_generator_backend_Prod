@@ -1,5 +1,8 @@
 const EventEmitter = require('events');
 const crypto = require('crypto');
+const { Logger } = require('@ux-flow/common');
+
+const logger = new Logger('semantic-cache');
 
 /**
  * Semantic Cache for AI Responses
@@ -606,7 +609,7 @@ class SemanticCache extends EventEmitter {
       
       return true;
     } catch (error) {
-      console.error('Failed to import cache:', error);
+      logger.error('Failed to import semantic cache', error);
       return false;
     }
   }

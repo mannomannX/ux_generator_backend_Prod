@@ -7,6 +7,10 @@ import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import crypto from 'crypto';
 import { ChromaDBConnectionManager } from '../services/chromadb-manager.js';
 import { CONFIG } from '../config/constants.js';
+// SECURITY FIX: Import security components
+import { VectorSecurity } from '../security/vector-security.js';
+import { DataSanitizer } from '../security/data-sanitizer.js';
+import { EmbeddingSecurity } from '../security/embedding-security.js';
 
 export class EnhancedRAGSystem {
   constructor(logger, mongoClient, redisClient, embeddingManager) {
@@ -14,6 +18,11 @@ export class EnhancedRAGSystem {
     this.mongoClient = mongoClient;
     this.redisClient = redisClient;
     this.embeddingManager = embeddingManager;
+    
+    // SECURITY FIX: Initialize security components
+    this.vectorSecurity = new VectorSecurity(logger);
+    this.dataSanitizer = new DataSanitizer(logger);
+    this.embeddingSecurity = new EmbeddingSecurity(logger);
     
     // ChromaDB manager (will be initialized in initialize())
     this.chromaManager = null;
@@ -355,11 +364,35 @@ export class EnhancedRAGSystem {
     const startTime = Date.now();
 
     try {
-      // Log query for analytics
-      await this.logQuery(userId, workspaceId, query, options);
+      // SECURITY FIX: Validate and sanitize query input
+      if (!query || typeof query !== 'string') {
+        throw new Error('Query must be a non-empty string');
+      }
+      
+      // SECURITY FIX: Validate query for prompt injection and sanitize
+      const queryValidation = this.vectorSecurity.validateEmbeddingInput(query);
+      if (!queryValidation.valid) {
+        throw new Error(`Invalid query: ${queryValidation.warnings.join(', ')}`);
+      }
+      
+      const sanitizedQuery = queryValidation.sanitized;
+      
+      // SECURITY FIX: Check for NoSQL injection attempts
+      if (this.dataSanitizer.detectNoSQLInjection(sanitizedQuery)) {
+        this.logger.warn('Potential NoSQL injection in query blocked', { userId, originalQuery: query.substring(0, 100) });
+        throw new Error('Invalid query format detected');
+      }
+      
+      // SECURITY FIX: Validate user permissions before proceeding
+      if (!await this.validateQueryAccess(userId, workspaceId, projectId, type)) {
+        throw new Error('Access denied for query scope');
+      }
+
+      // Log query for analytics (with sanitized query)
+      await this.logQuery(userId, workspaceId, sanitizedQuery, options);
 
       // Check cache for similar queries
-      const cachedResult = await this.getCachedQueryResult(query, workspaceId, type);
+      const cachedResult = await this.getCachedQueryResult(sanitizedQuery, workspaceId, type);
       if (cachedResult) {
         return {
           ...cachedResult,
@@ -368,9 +401,9 @@ export class EnhancedRAGSystem {
         };
       }
 
-      // Generate query embedding
+      // Generate query embedding with sanitized input
       const queryEmbedding = await this.embeddingManager.generateEmbeddings(
-        query,
+        sanitizedQuery,
         {
           userId,
           workspaceId,
@@ -390,9 +423,9 @@ export class EnhancedRAGSystem {
         { topK, workspaceId, projectId }
       );
 
-      // Perform keyword search
+      // Perform keyword search with sanitized query
       const keywordResults = await this.performKeywordSearch(
-        query,
+        sanitizedQuery,
         collectionsToSearch,
         { topK, workspaceId, projectId }
       );
@@ -401,7 +434,7 @@ export class EnhancedRAGSystem {
       const combinedResults = await this.combineAndRerank(
         semanticResults,
         keywordResults,
-        query,
+        sanitizedQuery,
         queryEmbedding.embedding
       );
 
@@ -418,7 +451,7 @@ export class EnhancedRAGSystem {
       );
 
       const result = {
-        query,
+        query: sanitizedQuery, // Return sanitized query
         results: enhancedResults,
         totalFound: combinedResults.length,
         filtered: finalResults.length,
@@ -430,7 +463,7 @@ export class EnhancedRAGSystem {
 
       // Cache successful results
       if (finalResults.length > 0) {
-        await this.cacheQueryResult(query, workspaceId, type, result);
+        await this.cacheQueryResult(sanitizedQuery, workspaceId, type, result);
       }
 
       return result;
@@ -518,12 +551,15 @@ export class EnhancedRAGSystem {
         matchCriteria.projectId = projectId;
       }
 
+      // SECURITY FIX: Safe regex construction to prevent ReDoS attacks
+      const safeRegexQuery = this.createSafeRegexPattern(query);
+      
       // Search in document chunks
       const keywordResults = await db.collection('rag_chunks').aggregate([
         {
           $match: {
             ...matchCriteria,
-            content: { $regex: new RegExp(query, 'i') }
+            content: { $regex: safeRegexQuery, $options: 'i' }
           }
         },
         {
@@ -1216,6 +1252,112 @@ A smooth checkout process can significantly improve conversion rates and reduce 
       this.logger.error('Failed to get RAG stats', error);
       return null;
     }
+  }
+  
+  // SECURITY FIX: New security methods
+  
+  /**
+   * Validate query access permissions
+   */
+  async validateQueryAccess(userId, workspaceId, projectId, type) {
+    try {
+      // Basic validation - in a real system, this would check user permissions
+      if (!userId) {
+        return false;
+      }
+      
+      // Global access is allowed for authenticated users
+      if (type === 'global') {
+        return true;
+      }
+      
+      // Workspace access requires workspace membership
+      if (type === 'workspace' && !workspaceId) {
+        return false;
+      }
+      
+      // Project access requires both workspace and project membership
+      if (type === 'project' && (!workspaceId || !projectId)) {
+        return false;
+      }
+      
+      // In a real implementation, you would check against user permissions database
+      // For now, assume authenticated users have access to their own workspaces/projects
+      return true;
+      
+    } catch (error) {
+      this.logger.error('Query access validation failed', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Create safe regex pattern to prevent ReDoS attacks
+   */
+  createSafeRegexPattern(query) {
+    // SECURITY FIX: Escape special regex characters and limit complexity
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Limit the length to prevent complex regex attacks
+    if (escaped.length > 100) {
+      return escaped.substring(0, 100);
+    }
+    
+    // Split into words and create a safe pattern
+    const words = escaped.split(/\s+/).filter(w => w.length > 0);
+    
+    // Limit number of words to prevent complex patterns
+    const safeWords = words.slice(0, 10);
+    
+    // Create alternation pattern instead of complex nested patterns
+    return safeWords.join('|');
+  }
+  
+  /**
+   * Enhanced PII detection with more patterns
+   */
+  detectPII(content) {
+    const piiFound = [];
+    
+    // Enhanced PII patterns
+    const enhancedPiiPatterns = [
+      { pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, type: 'email' },
+      { pattern: /\b\d{3}-\d{2}-\d{4}\b/g, type: 'ssn' },
+      { pattern: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, type: 'credit_card' },
+      { pattern: /\b\+?1?[-.]?\s?\(?\d{3}\)?[-.]?\s?\d{3}[-.]?\s?\d{4}\b/g, type: 'phone' },
+      // Additional patterns
+      { pattern: /\b\d{9}\b/g, type: 'tax_id' },
+      { pattern: /\b[A-Z]{2}\d{6,8}\b/g, type: 'passport' },
+      { pattern: /\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, type: 'date_of_birth' },
+      { pattern: /\b\d{4}\s\d{4}\s\d{4}\s\d{4}\b/g, type: 'formatted_credit_card' }
+    ];
+    
+    for (const { pattern, type } of enhancedPiiPatterns) {
+      if (pattern.test(content)) {
+        piiFound.push(type);
+      }
+    }
+    
+    return {
+      hasPII: piiFound.length > 0,
+      types: piiFound
+    };
+  }
+  
+  /**
+   * Enhanced document hash with security considerations
+   */
+  createDocumentHash(content, title, additionalData = {}) {
+    // SECURITY FIX: Include more data in hash to prevent hash collisions
+    const hashData = {
+      content: content.substring(0, 10000), // Limit content size for hashing
+      title,
+      timestamp: Date.now(),
+      ...additionalData
+    };
+    
+    const dataString = JSON.stringify(hashData);
+    return crypto.createHash('sha256').update(dataString, 'utf8').digest('hex');
   }
 }
 

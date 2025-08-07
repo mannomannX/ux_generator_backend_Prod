@@ -6,6 +6,9 @@
 import winston from 'winston';
 import ElasticsearchTransport from 'winston-elasticsearch';
 import { Client } from '@elastic/elasticsearch';
+import { Logger } from '@ux-flow/common';
+
+const logger = new Logger('elk-logger');
 
 export class ELKLogger {
   constructor(config = {}) {
@@ -39,8 +42,8 @@ export class ELKLogger {
     
     // Test connection
     this.esClient.ping()
-      .then(() => console.log('Elasticsearch connection established'))
-      .catch(err => console.error('Elasticsearch connection failed:', err));
+      .then(() => logger.info('Elasticsearch connection established'))
+      .catch(err => logger.error('Elasticsearch connection failed', err));
 
     // Create index template for better performance
     this.createIndexTemplate();
@@ -256,9 +259,9 @@ export class ELKLogger {
         }
       });
 
-      console.log('Elasticsearch index template created');
+      logger.info('Elasticsearch index template created');
     } catch (error) {
-      console.error('Failed to create index template:', error);
+      logger.error('Failed to create index template', error);
     }
   }
 
@@ -296,7 +299,7 @@ export class ELKLogger {
         body: metrics
       });
     } catch (error) {
-      console.error('Failed to send metrics to Elasticsearch:', error);
+      logger.error('Failed to send metrics to Elasticsearch', error);
     }
   }
 
@@ -496,7 +499,7 @@ export class ELKLogger {
 
       return result.hits;
     } catch (error) {
-      console.error('Failed to search logs:', error);
+      logger.error('Failed to search logs', error);
       throw error;
     }
   }
@@ -556,7 +559,7 @@ export class ELKLogger {
 
       return result.aggregations;
     } catch (error) {
-      console.error('Failed to get aggregated metrics:', error);
+      logger.error('Failed to get aggregated metrics', error);
       throw error;
     }
   }

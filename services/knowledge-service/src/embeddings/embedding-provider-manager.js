@@ -6,6 +6,8 @@
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import crypto from 'crypto';
+// SECURITY FIX: Import secure API key manager
+import { ApiKeyManager } from '../security/api-key-manager.js';
 
 export class EmbeddingProviderManager {
   constructor(logger, mongoClient, redisClient, billingService) {
@@ -14,10 +16,17 @@ export class EmbeddingProviderManager {
     this.redisClient = redisClient;
     this.billingService = billingService;
     
-    // Provider configurations
+    // SECURITY FIX: Initialize secure API key manager
+    this.apiKeyManager = new ApiKeyManager(logger, redisClient, {
+      encryptionKey: this.getEncryptionKey(),
+      rotationInterval: 24 * 60 * 60 * 1000, // 24 hours
+      maxKeyAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+    
+    // Provider configurations (without direct API key access)
     this.providers = {
       openai: {
-        client: new OpenAI({ apiKey: process.env.OPENAI_API_KEY }),
+        client: null, // Will be initialized securely
         models: {
           'text-embedding-ada-002': {
             dimensions: 1536,
@@ -38,11 +47,12 @@ export class EmbeddingProviderManager {
             batchSize: 2048
           }
         },
-        available: !!process.env.OPENAI_API_KEY,
-        priority: 1
+        available: false, // Will be set during secure initialization
+        priority: 1,
+        keyProvider: 'openai'
       },
       google: {
-        client: new GoogleGenerativeAI(process.env.GOOGLE_API_KEY),
+        client: null, // Will be initialized securely
         models: {
           'embedding-001': {
             dimensions: 768,
@@ -51,8 +61,9 @@ export class EmbeddingProviderManager {
             batchSize: 100
           }
         },
-        available: !!process.env.GOOGLE_API_KEY,
-        priority: 2
+        available: false, // Will be set during secure initialization
+        priority: 2,
+        keyProvider: 'google'
       },
       cohere: {
         // Placeholder for future Cohere integration
@@ -79,12 +90,124 @@ export class EmbeddingProviderManager {
     
     this.initialize();
   }
+  
+  /**
+   * SECURITY FIX: Get or generate encryption key for API keys
+   */
+  getEncryptionKey() {
+    let key = process.env.EMBEDDING_KEY_ENCRYPTION_KEY;
+    
+    if (!key) {
+      // Generate a new key if not provided (development only)
+      if (process.env.NODE_ENV === 'development') {
+        key = crypto.randomBytes(32).toString('base64');
+        this.logger.warn('Generated temporary embedding key encryption key - set EMBEDDING_KEY_ENCRYPTION_KEY in production');
+      } else {
+        throw new Error('EMBEDDING_KEY_ENCRYPTION_KEY environment variable is required in production');
+      }
+    }
+    
+    return Buffer.from(key, 'base64');
+  }
+  
+  /**
+   * SECURITY FIX: Initialize providers with secure API key management
+   */
+  async initializeSecureProviders() {
+    try {
+      // Initialize OpenAI provider securely
+      await this.initializeOpenAIProvider();
+      
+      // Initialize Google provider securely
+      await this.initializeGoogleProvider();
+      
+      this.logger.info('Secure provider initialization completed');
+      
+    } catch (error) {
+      this.logger.error('Failed to initialize secure providers', error);
+    }
+  }
+  
+  /**
+   * SECURITY FIX: Initialize OpenAI provider with secure key management
+   */
+  async initializeOpenAIProvider() {
+    try {
+      // Try to get existing stored key first
+      let apiKeyData = null;
+      try {
+        apiKeyData = await this.apiKeyManager.getApiKey('openai');
+      } catch (error) {
+        // No stored key found, check environment
+        const envKey = process.env.OPENAI_API_KEY;
+        if (envKey) {
+          // Store the environment key securely
+          await this.apiKeyManager.storeApiKey('openai', envKey, {
+            provider: 'openai',
+            source: 'environment',
+            storedAt: new Date().toISOString()
+          });
+          apiKeyData = await this.apiKeyManager.getApiKey('openai');
+        }
+      }
+      
+      if (apiKeyData) {
+        this.providers.openai.client = new OpenAI({ apiKey: apiKeyData.apiKey });
+        this.providers.openai.available = true;
+        this.logger.info('OpenAI provider initialized securely');
+      } else {
+        this.logger.warn('OpenAI API key not available');
+      }
+      
+    } catch (error) {
+      this.logger.error('Failed to initialize OpenAI provider securely', error);
+    }
+  }
+  
+  /**
+   * SECURITY FIX: Initialize Google provider with secure key management
+   */
+  async initializeGoogleProvider() {
+    try {
+      // Try to get existing stored key first
+      let apiKeyData = null;
+      try {
+        apiKeyData = await this.apiKeyManager.getApiKey('google');
+      } catch (error) {
+        // No stored key found, check environment
+        const envKey = process.env.GOOGLE_API_KEY;
+        if (envKey) {
+          // Store the environment key securely
+          await this.apiKeyManager.storeApiKey('google', envKey, {
+            provider: 'google',
+            source: 'environment',
+            storedAt: new Date().toISOString()
+          });
+          apiKeyData = await this.apiKeyManager.getApiKey('google');
+        }
+      }
+      
+      if (apiKeyData) {
+        this.providers.google.client = new GoogleGenerativeAI(apiKeyData.apiKey);
+        this.providers.google.available = true;
+        this.logger.info('Google provider initialized securely');
+      } else {
+        this.logger.warn('Google API key not available');
+      }
+      
+    } catch (error) {
+      this.logger.error('Failed to initialize Google provider securely', error);
+    }
+  }
 
   /**
    * Initialize embedding provider manager
    */
   async initialize() {
     try {
+      // SECURITY FIX: Initialize secure providers first
+      await this.initializeSecureProviders();
+      
       // Create database indexes
       await this.createDatabaseIndexes();
       

@@ -205,6 +205,8 @@ const service = new FlowService();
 service.initialize()
   .then(() => service.start())
   .catch((error) => {
-    console.error('Failed to start Flow Service:', error);
+    // Use a basic logger instance since the service hasn't initialized yet
+    const logger = new Logger('flow-service-startup');
+    logger.error('Failed to start Flow Service', error);
     process.exit(1);
   });

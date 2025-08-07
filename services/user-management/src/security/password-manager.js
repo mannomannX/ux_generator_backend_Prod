@@ -70,19 +70,37 @@ class PasswordManager {
   }
   
   /**
-   * Verify password with migration support
+   * Verify password with secure migration support
    */
-  async verifyPassword(password, hash) {
+  async verifyPassword(password, hash, requireSecondFactor = false) {
     try {
       // Check if using old bcrypt (migration path)
       if (this.isBcryptHash(hash)) {
         const valid = await bcrypt.compare(password, hash);
         if (valid) {
+          // SECURITY FIX: For bcrypt migration, require additional verification for security-sensitive operations
+          if (requireSecondFactor) {
+            return {
+              valid: true,
+              needsRehash: true,
+              requireAdditionalVerification: true,
+              message: 'Password valid but additional verification required for security upgrade'
+            };
+          }
+          
+          // SECURITY FIX: Log migration for audit trail
+          this.logger.info('Password hash migration detected', {
+            timestamp: new Date().toISOString(),
+            migrationFrom: 'bcrypt',
+            migrationTo: 'argon2id'
+          });
+          
           // Password is correct but needs rehashing
           return { 
             valid: true, 
             needsRehash: true,
             newHash: await this.hashPassword(password),
+            migrationPerformed: true
           };
         }
         return { valid: false };

@@ -387,6 +387,8 @@ const service = new KnowledgeService();
 service.initialize()
   .then(() => service.start())
   .catch((error) => {
-    console.error('Failed to start Knowledge Service:', error);
+    // Use a basic logger instance since the service hasn't initialized yet
+    const logger = new Logger('knowledge-service-startup');
+    logger.error('Failed to start Knowledge Service', error);
     process.exit(1);
   });

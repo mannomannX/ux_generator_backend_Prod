@@ -687,98 +687,168 @@ export class BusinessRulesEngine {
   }
 
   /**
-   * Execute custom rule in a secure sandbox
-   * Uses Node.js VM with timeout and memory limits
+   * Execute custom rule in a SECURE isolated Worker thread
+   * SECURITY FIX: Replaced dangerous code injection with Worker thread isolation
    */
   async executeRuleInSandbox(rule, flow) {
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error(`Rule execution timeout: ${rule.id}`));
-      }, 1000); // 1 second timeout
-
-      try {
-        // Create a secure context with only safe objects
-        const sandbox = {
-          flow: JSON.parse(JSON.stringify(flow)), // Deep clone to prevent modification
-          result: { passed: true, details: null },
-          // Only provide safe utility functions
-          console: {
-            log: () => {}, // No-op to prevent information leakage
-            error: () => {},
-            warn: () => {}
-          },
-          JSON: JSON,
-          Math: Math,
-          Date: Date,
-          String: String,
-          Number: Number,
-          Boolean: Boolean,
-          Array: Array,
-          Object: Object,
-          // Helper functions for rule writing
-          countNodes: (type) => flow.nodes.filter(n => n.type === type).length,
-          countEdges: () => flow.edges.length,
-          findNode: (id) => flow.nodes.find(n => n.id === id),
-          findNodesByType: (type) => flow.nodes.filter(n => n.type === type),
-          hasPath: (fromId, toId) => {
-            // Simple path checking
-            const visited = new Set();
-            const queue = [fromId];
-            while (queue.length > 0) {
-              const current = queue.shift();
-              if (current === toId) return true;
-              if (visited.has(current)) continue;
-              visited.add(current);
-              const edges = flow.edges.filter(e => e.source === current);
-              edges.forEach(e => queue.push(e.target));
-            }
-            return false;
-          }
-        };
-
-        // Create the script to run in sandbox
-        const script = `
-          try {
-            // User's rule code wrapped in a function
-            const ruleFunction = function(flow) {
-              ${rule.code}
-            };
-            
-            // Execute the rule
-            const ruleResult = ruleFunction(flow);
-            
-            // Validate and set result
-            if (typeof ruleResult === 'object' && ruleResult !== null) {
-              result.passed = Boolean(ruleResult.passed);
-              result.details = String(ruleResult.details || '');
-            } else {
-              result.passed = Boolean(ruleResult);
-            }
-          } catch (error) {
-            result.passed = false;
-            result.details = 'Rule execution error: ' + error.message;
-          }
-        `;
-
-        // Run in VM context with strict timeout
-        vm.createContext(sandbox);
-        vm.runInContext(script, sandbox, {
-          timeout: 900, // 900ms to leave buffer for cleanup
-          displayErrors: false,
-          breakOnSigint: false
-        });
-
-        clearTimeout(timeout);
-        resolve(sandbox.result);
-      } catch (error) {
-        clearTimeout(timeout);
-        this.logger.warn('Rule execution error', { ruleId: rule.id, error: error.message });
+      // Validate rule code before execution
+      if (!this.validateRuleCode(rule.code)) {
         resolve({
           passed: false,
-          details: `Rule execution failed: ${error.message}`
+          details: 'Rule code contains prohibited patterns'
         });
+        return;
       }
+
+      const workerData = {
+        ruleCode: rule.code,
+        ruleId: rule.id,
+        flow: JSON.parse(JSON.stringify(flow)) // Deep clone for isolation
+      };
+
+      // Create isolated Worker thread for rule execution
+      const worker = new Worker(
+        new URL('./rule-execution-worker.js', import.meta.url),
+        { 
+          workerData,
+          resourceLimits: {
+            maxOldGenerationSizeMb: 50, // Limit memory to 50MB
+            maxYoungGenerationSizeMb: 10
+          }
+        }
+      );
+
+      const timeout = setTimeout(() => {
+        worker.terminate();
+        resolve({
+          passed: false,
+          details: `Rule execution timeout after 1000ms: ${rule.id}`
+        });
+      }, 1000);
+
+      worker.on('message', (result) => {
+        clearTimeout(timeout);
+        worker.terminate();
+        resolve(result);
+      });
+
+      worker.on('error', (error) => {
+        clearTimeout(timeout);
+        worker.terminate();
+        this.logger.warn('Rule execution worker error', { 
+          ruleId: rule.id, 
+          error: error.message 
+        });
+        resolve({
+          passed: false,
+          details: `Worker execution error: ${error.message}`
+        });
+      });
+
+      worker.on('exit', (code) => {
+        clearTimeout(timeout);
+        if (code !== 0) {
+          this.logger.warn('Rule execution worker exited abnormally', { 
+            ruleId: rule.id, 
+            exitCode: code 
+          });
+          resolve({
+            passed: false,
+            details: `Worker exited with code: ${code}`
+          });
+        }
+      });
     });
+  }
+
+  /**
+   * Validate rule code for security threats
+   * SECURITY: Block dangerous patterns before execution
+   */
+  validateRuleCode(code) {
+    if (!code || typeof code !== 'string') {
+      return false;
+    }
+
+    // Blocked patterns that indicate potential security threats
+    const dangerousPatterns = [
+      /require\s*\(/i,           // Module loading
+      /import\s+/i,              // ES6 imports
+      /process\./i,              // Process access
+      /global\./i,               // Global access
+      /globalThis\./i,           // Global access
+      /Function\s*\(/i,          // Function constructor
+      /eval\s*\(/i,              // eval() calls
+      /setTimeout\s*\(/i,        // setTimeout
+      /setInterval\s*\(/i,       // setInterval
+      /fetch\s*\(/i,             // Network requests
+      /XMLHttpRequest/i,         // AJAX requests
+      /WebSocket/i,              // WebSocket access
+      /document\./i,             // DOM access
+      /window\./i,               // Window access
+      /this\s*\./i,              // This context access
+      /prototype\./i,            // Prototype pollution
+      /constructor/i,            // Constructor access
+      /__proto__/i,              // Proto access
+      /Buffer\s*\(/i,            // Buffer access
+      /fs\./i,                   // File system
+      /path\./i,                 // Path module
+      /os\./i,                   // OS module
+      /child_process/i,          // Process spawning
+      /cluster/i,                // Cluster access
+      /worker_threads/i,         // Worker access
+      /crypto\./i,               // Crypto module
+      /http\./i,                 // HTTP module
+      /https\./i,                // HTTPS module
+      /net\./i,                  // Net module
+      /url\./i,                  // URL module
+      /vm\./i,                   // VM module access
+    ];
+
+    // Check for dangerous patterns
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(code)) {
+        this.logger.warn('Rule code blocked due to dangerous pattern', { 
+          pattern: pattern.source 
+        });
+        return false;
+      }
+    }
+
+    // Additional validation - check code length
+    if (code.length > 10000) {
+      this.logger.warn('Rule code blocked due to excessive length');
+      return false;
+    }
+
+    // Check for suspicious string patterns
+    const suspiciousStrings = [
+      'child_process',
+      'spawn',
+      'exec',
+      'execFile',
+      'fork',
+      '../',
+      '/etc/',
+      '/proc/',
+      '/sys/',
+      'rm -rf',
+      'del /s',
+      'format c:',
+    ];
+
+    const lowerCode = code.toLowerCase();
+    for (const suspicious of suspiciousStrings) {
+      if (lowerCode.includes(suspicious)) {
+        this.logger.warn('Rule code blocked due to suspicious string', { 
+          string: suspicious 
+        });
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**

@@ -118,8 +118,10 @@ export class TierRateLimiter {
           prefix: `rl:ai:${tier}:`
         }),
         skip: (req) => {
-          // Skip rate limiting for internal services
-          return req.headers['x-service-auth'] === process.env.INTERNAL_SERVICE_KEY;
+          // SECURITY FIX: Removed insecure header-based authentication bypass
+          // Service-to-service auth should be handled by proper middleware, not simple header comparison
+          // Only skip if request is properly authenticated as service-to-service via ServiceAuth middleware
+          return req.serviceAuth && req.serviceAuth.fromService;
         }
       });
       
@@ -154,9 +156,10 @@ export class TierRateLimiter {
           prefix: `rl:data:${tier}:`
         }),
         skip: (req) => {
-          // Skip for read operations (only limit writes)
-          return req.method === 'GET' || 
-                 req.headers['x-service-auth'] === process.env.INTERNAL_SERVICE_KEY;
+          // SECURITY FIX: Removed insecure authentication bypass and overly permissive GET exemption
+          // Only skip if request is properly authenticated as service-to-service via ServiceAuth middleware
+          // GET operations can still consume resources and should be rate limited for security
+          return req.serviceAuth && req.serviceAuth.fromService;
         }
       });
       
