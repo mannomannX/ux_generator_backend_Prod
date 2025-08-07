@@ -16,7 +16,9 @@
       "Bash(npm run test:api-gateway:*)",
       "Bash(set NODE_OPTIONS=--experimental-vm-modules)",
       "Bash(jest:*)",
-      "Bash(npx jest:*)"
+      "Bash(npx jest:*)",
+      "Bash(cat:*)",
+      "Bash(true)"
     ],
     "deny": []
   }
