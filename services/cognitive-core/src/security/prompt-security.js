@@ -379,25 +379,76 @@ export class PromptSecurity {
 
   /**
    * Sanitize prompt while preserving UX functionality
+   * This is a balanced approach that removes genuinely dangerous patterns
+   * while preserving legitimate UX design terminology and symbols
    */
-  sanitizePrompt(prompt) {
+  sanitizePrompt(prompt, options = {}) {
     let sanitized = prompt;
+    
+    // Allow bypassing sanitization for trusted users or specific contexts
+    const {
+      minimal = false,
+      preserveHTML = true,
+      preserveFormatting = true,
+      trustedUser = false
+    } = options;
+    
+    // For trusted users, apply minimal sanitization
+    if (trustedUser) {
+      return this.minimalSanitizePrompt(prompt);
+    }
+    
+    // Remove excessive whitespace (but preserve single line breaks)
+    sanitized = sanitized.replace(/[ \t]+/g, ' '); // Multiple spaces/tabs to single space
+    sanitized = sanitized.replace(/\n\s*\n\s*\n/g, '\n\n'); // Multiple newlines to double newline
+    sanitized = sanitized.trim();
+    
+    // Remove only the most dangerous script-like content (but allow HTML for mockups)
+    sanitized = sanitized.replace(/javascript\s*:/gi, ''); // Remove javascript: protocols
+    sanitized = sanitized.replace(/data\s*:\s*text\s*\/\s*html/gi, ''); // Remove data:text/html
+    sanitized = sanitized.replace(/vbscript\s*:/gi, ''); // Remove vbscript:
+    sanitized = sanitized.replace(/on\w+\s*=/gi, ''); // Remove event handlers like onclick=
+    
+    // Remove dangerous HTML script tags but allow other tags for UX mockups
+    sanitized = sanitized.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    sanitized = sanitized.replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '');
+    sanitized = sanitized.replace(/<object[^>]*>[\s\S]*?<\/object>/gi, '');
+    sanitized = sanitized.replace(/<embed[^>]*\/?>/gi, '');
+    
+    // Remove SQL injection patterns only if they're clearly malicious
+    // (preserve legitimate usage like "SELECT component from library")
+    sanitized = sanitized.replace(/(\b(union\s+select|drop\s+table|delete\s+from|insert\s+into.*values)\b\s*[({;])/gi, '');
+    
+    // Remove command injection patterns
+    sanitized = sanitized.replace(/(\||\|\||&&|;)\s*(rm|del|format|shutdown|reboot|kill)\s/gi, '');
+    
+    // Remove null bytes and control characters (but preserve common unicode)
+    sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    
+    // Preserve important UX-related symbols and characters:
+    // - Unicode characters for design symbols (→, ←, ↑, ↓, etc.)
+    // - HTML tags for mockups (<div>, <button>, etc.)
+    // - CSS-like syntax for styling descriptions
+    // - Common design notation (%, px, em, rem, etc.)
+    // - Brackets and symbols for wireframes
+    
+    return sanitized;
+  }
 
-    // Remove potentially dangerous characters but preserve UX-related ones
-    sanitized = sanitized.replace(/[^\w\s\-_.,:;!?()[\]{}'"@#$%&*+=|\\/<>]/g, '');
+  /**
+   * Minimal sanitization for trusted users
+   * Only removes the most critical security threats
+   */
+  minimalSanitizePrompt(prompt) {
+    let sanitized = prompt;
     
-    // Remove excessive whitespace
-    sanitized = sanitized.replace(/\s+/g, ' ').trim();
+    // Remove only the most dangerous patterns
+    sanitized = sanitized.replace(/javascript\s*:/gi, '');
+    sanitized = sanitized.replace(/vbscript\s*:/gi, '');
+    sanitized = sanitized.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
     
-    // Remove HTML tags
-    sanitized = sanitized.replace(/<[^>]*>/g, '');
-    
-    // Remove script-like content
-    sanitized = sanitized.replace(/javascript:/gi, '');
-    sanitized = sanitized.replace(/data:text\/html/gi, '');
-    
-    // Remove SQL injection patterns
-    sanitized = sanitized.replace(/(\b(union|select|insert|update|delete|drop|create|alter|exec|execute)\b\s*[({;])/gi, '');
+    // Remove null bytes and critical control characters
+    sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
     
     return sanitized;
   }

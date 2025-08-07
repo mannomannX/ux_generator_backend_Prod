@@ -527,4 +527,4 @@ class ProblemDatabase {
   }
 }
 
-module.exports = { ProblemDatabase };
+export { ProblemDatabase };

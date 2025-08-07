@@ -390,17 +390,57 @@ router.post('/change-password', authMiddleware, sensitiveOperationRateLimit, asy
   });
 }));
 
-// Logout (client-side token invalidation)
+// Logout with server-side token blacklisting
 router.post('/logout', authMiddleware, asyncHandler(async (req, res) => {
-  const { userId } = req.user;
+  const { userId, token, tokenExp } = req.user;
+  
+  // Get token blacklist service
+  const { getTokenBlacklist } = await import('../middleware/auth.js');
+  const tokenBlacklist = getTokenBlacklist();
+  
+  if (tokenBlacklist && token && tokenExp) {
+    // Blacklist the current token
+    await tokenBlacklist.blacklistToken(
+      token, 
+      userId, 
+      tokenExp * 1000, // Convert to milliseconds
+      'user_logout'
+    );
+  }
 
-  req.app.locals.logger.info('User logged out', {
+  req.app.locals.logger.info('User logged out and token blacklisted', {
     userId,
     correlationId: req.correlationId,
   });
 
   res.json({
     message: 'Logout successful',
+  });
+}));
+
+// Logout all sessions (revoke all tokens)
+router.post('/logout-all', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = req.user;
+  
+  // Get token blacklist service
+  const { getTokenBlacklist } = await import('../middleware/auth.js');
+  const tokenBlacklist = getTokenBlacklist();
+  
+  let revokedCount = 0;
+  if (tokenBlacklist) {
+    // Revoke all tokens for this user
+    revokedCount = await tokenBlacklist.revokeAllUserTokens(userId, 'logout_all_sessions');
+  }
+
+  req.app.locals.logger.info('All user sessions terminated', {
+    userId,
+    revokedCount,
+    correlationId: req.correlationId,
+  });
+
+  res.json({
+    message: 'All sessions logged out successfully',
+    sessionsRevoked: revokedCount,
   });
 }));
 

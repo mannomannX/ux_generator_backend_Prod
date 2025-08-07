@@ -3,11 +3,12 @@
 // ==========================================
 import express from 'express';
 import { MongoClient } from '@ux-flow/common';
+import { checkFlowPermission, checkVersionRestorePermission, checkBatchPermissions } from '../middleware/authorization.js';
 
 const router = express.Router();
 
 // Get flow by project ID
-router.get('/project/:projectId', async (req, res) => {
+router.get('/project/:projectId', checkFlowPermission('read'), async (req, res) => {
   try {
     const { projectId } = req.params;
     const { workspaceId } = req.query;
@@ -45,7 +46,7 @@ router.get('/project/:projectId', async (req, res) => {
 });
 
 // Get flow by flow ID
-router.get('/:flowId', async (req, res) => {
+router.get('/:flowId', checkFlowPermission('read'), async (req, res) => {
   try {
     const { flowId } = req.params;
     const { projectId, workspaceId } = req.query;
@@ -74,7 +75,7 @@ router.get('/:flowId', async (req, res) => {
 });
 
 // Create new flow
-router.post('/', async (req, res) => {
+router.post('/', checkFlowPermission('write'), async (req, res) => {
   try {
     const { projectId, workspaceId, template, name, description } = req.body;
     const userId = req.headers['x-user-id']; // From API Gateway
@@ -109,7 +110,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update flow with transactions
-router.patch('/:flowId', async (req, res) => {
+router.patch('/:flowId', checkFlowPermission('write'), async (req, res) => {
   try {
     const { flowId } = req.params;
     const { transactions, projectId } = req.body;
@@ -176,7 +177,7 @@ router.patch('/:flowId', async (req, res) => {
 });
 
 // Validate flow
-router.post('/:flowId/validate', async (req, res) => {
+router.post('/:flowId/validate', checkFlowPermission('read'), async (req, res) => {
   try {
     const { flowId } = req.params;
     const { flowData, transactions } = req.body;
@@ -208,7 +209,7 @@ router.post('/:flowId/validate', async (req, res) => {
 });
 
 // Delete flow
-router.delete('/:flowId', async (req, res) => {
+router.delete('/:flowId', checkFlowPermission('delete'), async (req, res) => {
   try {
     const { flowId } = req.params;
     const { projectId } = req.query;
@@ -289,7 +290,7 @@ router.get('/:flowId/export', async (req, res) => {
 });
 
 // Import flow
-router.post('/import', async (req, res) => {
+router.post('/import', checkFlowPermission('write'), async (req, res) => {
   try {
     const { flowData, projectId, workspaceId, name } = req.body;
     const userId = req.headers['x-user-id'];
@@ -490,7 +491,7 @@ router.get('/stats/aggregate', async (req, res) => {
 });
 
 // Duplicate flow
-router.post('/:flowId/duplicate', async (req, res) => {
+router.post('/:flowId/duplicate', checkFlowPermission('write'), async (req, res) => {
   try {
     const { flowId } = req.params;
     const { projectId, workspaceId, name } = req.body;

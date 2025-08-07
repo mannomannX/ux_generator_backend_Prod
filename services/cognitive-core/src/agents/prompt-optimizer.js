@@ -8,10 +8,14 @@
  * Output: Optimized prompt that addresses the identified issue
  */
 
-const { BaseAgent } = require('./base-agent.js');
-const fs = require('fs/promises');
-const path = require('path');
-const crypto = require('crypto');
+import { BaseAgent } from './agent-base.js';
+import fs from 'fs/promises';
+import path from 'path';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class PromptOptimizerAgent extends BaseAgent {
   constructor(logger, agentHub) {
@@ -21,8 +25,8 @@ class PromptOptimizerAgent extends BaseAgent {
     // Configuration
     this.config = {
       enabled: process.env.ENABLE_PROMPT_OPTIMIZATION === 'true',
-      promptsDirectory: path.join(process.cwd(), 'src', 'prompts'),
-      backupDirectory: path.join(process.cwd(), 'backups', 'prompts'),
+      promptsDirectory: path.join(__dirname, '..', 'prompts'),
+      backupDirectory: path.join(__dirname, '..', '..', 'backups', 'prompts'),
       maxPromptLength: 8000,
       minImprovement: 0.1 // Minimum confidence improvement required
     };
@@ -450,4 +454,4 @@ Optimiere den Prompt jetzt:`;
   }
 }
 
-module.exports = { PromptOptimizerAgent };
+export { PromptOptimizerAgent };

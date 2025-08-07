@@ -2,6 +2,17 @@
 // SERVICES/API-GATEWAY/src/middleware/auth.js
 // ==========================================
 import { JWTUtils } from '@ux-flow/common';
+import { TokenBlacklistService } from '../services/token-blacklist.js';
+
+let tokenBlacklist = null;
+
+export const initializeTokenBlacklist = (redisClient, logger) => {
+  tokenBlacklist = new TokenBlacklistService(redisClient, logger);
+  tokenBlacklist.startCleanupJob();
+  return tokenBlacklist;
+};
+
+export const getTokenBlacklist = () => tokenBlacklist;
 
 export const authMiddleware = async (req, res, next) => {
   try {
@@ -16,6 +27,15 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    
+    // Check if token is blacklisted
+    if (tokenBlacklist && await tokenBlacklist.isBlacklisted(token)) {
+      return res.status(401).json({
+        error: 'Token revoked',
+        message: 'This token has been revoked',
+        correlationId: req.correlationId,
+      });
+    }
     
     const decoded = JWTUtils.verify(token);
     if (!decoded) {
@@ -42,6 +62,8 @@ export const authMiddleware = async (req, res, next) => {
       workspaceId: decoded.workspaceId,
       role: decoded.role || 'user',
       permissions: decoded.permissions || [],
+      token, // Store token for potential revocation
+      tokenExp: decoded.exp
     };
 
     next();
@@ -64,6 +86,13 @@ export const optionalAuth = async (req, res, next) => {
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
+      
+      // Check if token is blacklisted
+      if (tokenBlacklist && await tokenBlacklist.isBlacklisted(token)) {
+        // For optional auth, we just skip setting user
+        return next();
+      }
+      
       const decoded = JWTUtils.verify(token);
       
       if (decoded && (!decoded.exp || Date.now() < decoded.exp * 1000)) {
@@ -73,6 +102,8 @@ export const optionalAuth = async (req, res, next) => {
           workspaceId: decoded.workspaceId,
           role: decoded.role || 'user',
           permissions: decoded.permissions || [],
+          token,
+          tokenExp: decoded.exp
         };
       }
     }

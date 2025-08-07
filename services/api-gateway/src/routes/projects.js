@@ -11,9 +11,10 @@ import {
   validatePagination, 
   sanitizeInput,
   sanitizeRegexPattern,
-  validateVisibility,
-  validateProjectStatus
-} from '../utils/validation.js';
+  createTextSearchQuery,
+  validateEnum,
+  safeObjectId
+} from '../utils/secure-validation.js';
 import { ServiceClient } from '../middleware/service-auth.js';
 import { ComprehensiveValidator } from '../middleware/comprehensive-validation.js';
 
@@ -42,17 +43,11 @@ router.get('/', requirePermission('read_projects'), asyncHandler(async (req, res
   };
 
   if (search) {
-    // Sanitize and escape search input to prevent ReDoS attacks
-    const sanitizedSearch = validator.validateSearchInput(search);
-    
-    if (sanitizedSearch) {
+    // Create safe text search query
+    const searchQuery = createTextSearchQuery(search, ['name', 'description']);
+    if (searchQuery) {
       query.$and = query.$and || [];
-      query.$and.push({
-        $or: [
-          { name: { $regex: sanitizedSearch, $options: 'i' } },
-          { description: { $regex: sanitizedSearch, $options: 'i' } },
-        ],
-      });
+      query.$and.push(searchQuery);
     }
   }
 
@@ -111,10 +106,10 @@ router.get('/:projectId', requirePermission('read_projects'), asyncHandler(async
   const projectsCollection = db.collection('projects');
 
   // Validate ObjectId to prevent injection
-  const validatedProjectId = validator.validateObjectId(projectId, 'projectId');
+  const validatedProjectId = validateObjectId(projectId, 'projectId');
   
   const project = await projectsCollection.findOne({
-    _id: MongoClient.createObjectId(validatedProjectId),
+    _id: validatedProjectId,
     workspaceId,
   });
 
@@ -254,11 +249,11 @@ router.patch('/:projectId', requirePermission('write_projects'), asyncHandler(as
   const projectsCollection = db.collection('projects');
 
   // Validate ObjectId to prevent injection
-  const validatedProjectId = validator.validateObjectId(projectId, 'projectId');
+  const validatedProjectId = validateObjectId(projectId, 'projectId');
   
   // Check if project exists and user has access
   const project = await projectsCollection.findOne({
-    _id: MongoClient.createObjectId(validatedProjectId),
+    _id: validatedProjectId,
     workspaceId,
   });
 
@@ -292,7 +287,7 @@ router.patch('/:projectId', requirePermission('write_projects'), asyncHandler(as
     const existingProject = await projectsCollection.findOne({
       workspaceId,
       name,
-      _id: { $ne: MongoClient.createObjectId(validatedProjectId) },
+      _id: { $ne: validatedProjectId },
     });
 
     if (existingProject) {
@@ -307,19 +302,16 @@ router.patch('/:projectId', requirePermission('write_projects'), asyncHandler(as
   }
 
   if (visibility !== undefined) {
-    if (!['private', 'public', 'workspace'].includes(visibility)) {
-      throw new ValidationError('Invalid visibility value');
-    }
-    updateData.visibility = visibility;
+    updateData.visibility = validateEnum(visibility, ['private', 'public', 'workspace'], 'visibility');
   }
 
   if (settings !== undefined) {
     updateData.settings = { ...project.settings, ...settings };
   }
 
-  // Update project
+  // Update project with validated ID
   const result = await projectsCollection.updateOne(
-    { _id: validateObjectId(projectId, 'Project ID') },
+    { _id: validatedProjectId },
     { $set: updateData }
   );
 
@@ -347,9 +339,12 @@ router.delete('/:projectId', requirePermission('delete_own_projects'), asyncHand
   const db = req.app.locals.mongoClient.getDb();
   const projectsCollection = db.collection('projects');
 
+  // Validate ObjectId to prevent injection
+  const validatedProjectId = validateObjectId(projectId, 'projectId');
+  
   // Check if project exists and user is owner
   const project = await projectsCollection.findOne({
-    _id: validateObjectId(projectId, 'Project ID'),
+    _id: validatedProjectId,
     workspaceId,
     ownerId: userId, // Only owner can delete
   });
@@ -360,7 +355,7 @@ router.delete('/:projectId', requirePermission('delete_own_projects'), asyncHand
 
   // Soft delete the project
   await projectsCollection.updateOne(
-    { _id: validateObjectId(projectId, 'Project ID') },
+    { _id: validatedProjectId },
     {
       $set: {
         status: 'deleted',

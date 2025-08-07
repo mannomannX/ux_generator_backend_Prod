@@ -10,7 +10,13 @@
       "Bash(touch:*)",
       "Bash(echo:*)",
       "Bash(mv:*)",
-      "Bash(npm test)"
+      "Bash(npm test)",
+      "Bash(npm run lint)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:api-gateway:*)",
+      "Bash(set NODE_OPTIONS=--experimental-vm-modules)",
+      "Bash(jest:*)",
+      "Bash(npx jest:*)"
     ],
     "deny": []
   }

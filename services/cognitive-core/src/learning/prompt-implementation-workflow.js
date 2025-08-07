@@ -13,11 +13,15 @@
  * - Human approval checkpoints
  */
 
-const fs = require('fs/promises');
-const path = require('path');
-const crypto = require('crypto');
-const { exec } = require('child_process');
-const { promisify } = require('util');
+import fs from 'fs/promises';
+import path from 'path';
+import crypto from 'crypto';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const execAsync = promisify(exec);
 
@@ -30,8 +34,8 @@ class PromptImplementationWorkflow {
     // Configuration
     this.config = {
       enabled: process.env.ENABLE_PROMPT_IMPLEMENTATION === 'true',
-      promptsDirectory: path.join(process.cwd(), 'src', 'prompts'),
-      backupsDirectory: path.join(process.cwd(), 'backups', 'prompts'),
+      promptsDirectory: path.join(__dirname, '..', 'prompts'),
+      backupsDirectory: path.join(__dirname, '..', '..', 'backups', 'prompts'),
       maxBackups: 50,
       requireGitCommit: process.env.REQUIRE_GIT_COMMIT !== 'false',
       requireTesting: process.env.REQUIRE_TESTING !== 'false',
@@ -689,4 +693,4 @@ Reason: Implementation failure or manual rollback`;
   }
 }
 
-module.exports = { PromptImplementationWorkflow };
+export { PromptImplementationWorkflow };

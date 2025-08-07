@@ -13,7 +13,7 @@
  * 6. Implementation Workflow deploys changes safely
  */
 
-const { EventEmitter } = require('events');
+import { EventEmitter } from 'events';
 
 class LearningSystemCoordinator extends EventEmitter {
   constructor(logger, mongoClient, agentHub, eventEmitter) {
@@ -70,11 +70,19 @@ class LearningSystemCoordinator extends EventEmitter {
 
     try {
       // Import and initialize components
-      const { EpisodeDetector } = require('./episode-detector.js');
-      const { ProblemDatabase } = require('./problem-database.js');
-      const { PromptSuggestionAdmin } = require('../admin/prompt-suggestion-admin.js');
-      const { PromptOptimizerAgent } = require('../agents/prompt-optimizer.js');
-      const { PromptImplementationWorkflow } = require('./prompt-implementation-workflow.js');
+      const { EpisodeDetector } = await import('./episode-detector.js');
+      const { ProblemDatabase } = await import('./problem-database.js');
+      const { PromptSuggestionAdmin } = await import('../admin/prompt-suggestion-admin.js');
+      const { PromptOptimizerAgent } = await import('../agents/prompt-optimizer.js');
+      const { PromptImplementationWorkflow } = await import('./prompt-implementation-workflow.js');
+      const { LearningDatabaseInitializer } = await import('./database-initializer.js');
+
+      // Initialize learning database first
+      this.logger.info('Initializing learning database structure');
+      const dbInitializer = new LearningDatabaseInitializer(this.mongoClient, this.logger);
+      const dbInitResult = await dbInitializer.initialize();
+      
+      this.logger.info('Learning database initialization result', dbInitResult);
 
       // Initialize components
       this.episodeDetector = new EpisodeDetector(this.logger, this.mongoClient);
@@ -433,7 +441,7 @@ class LearningSystemCoordinator extends EventEmitter {
   /**
    * Get learning system health
    */
-  getSystemHealth() {
+  async getSystemHealth() {
     const health = {
       status: 'healthy',
       issues: [],
@@ -456,6 +464,21 @@ class LearningSystemCoordinator extends EventEmitter {
 
     if (this.stats.totalEpisodes === 0) {
       health.issues.push('No learning episodes recorded yet');
+    }
+
+    // Check database health
+    try {
+      const { LearningDatabaseInitializer } = await import('./database-initializer.js');
+      const dbInitializer = new LearningDatabaseInitializer(this.mongoClient, this.logger);
+      const dbHealth = await dbInitializer.getHealthStatus();
+      
+      health.database = dbHealth;
+      
+      if (dbHealth.status !== 'healthy') {
+        health.issues.push(`Database unhealthy: ${dbHealth.error || 'Unknown issue'}`);
+      }
+    } catch (error) {
+      health.issues.push(`Database health check failed: ${error.message}`);
     }
 
     if (health.issues.length > 0) {
@@ -528,4 +551,4 @@ class LearningSystemCoordinator extends EventEmitter {
   }
 }
 
-module.exports = { LearningSystemCoordinator };
+export { LearningSystemCoordinator };

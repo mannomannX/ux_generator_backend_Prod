@@ -4,6 +4,8 @@
 
 import { flowLimits } from '../config/flow-limits.js';
 import { ObjectId } from 'mongodb';
+import { js2xml } from 'xml-js';
+import yaml from 'js-yaml';
 
 export class BatchOperations {
   constructor(logger, flowManager, validationService, mongoClient) {
@@ -471,101 +473,222 @@ export class BatchOperations {
   }
 
   /**
-   * Convert flow to XML format
+   * Convert flow to XML format with proper structure
    */
   convertToXML(flow) {
-    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    xml += '<flow>\n';
-    xml += `  <metadata>\n`;
-    xml += `    <name>${flow.metadata?.flowName || 'Untitled'}</name>\n`;
-    xml += `    <version>${flow.metadata?.version || 1}</version>\n`;
-    xml += `  </metadata>\n`;
-    xml += '  <nodes>\n';
-    
-    for (const node of flow.nodes) {
-      xml += `    <node id="${node.id}" type="${node.type}">\n`;
-      if (node.data) {
-        xml += `      <data>${JSON.stringify(node.data)}</data>\n`;
+    const flowData = {
+      _declaration: {
+        _attributes: {
+          version: '1.0',
+          encoding: 'UTF-8'
+        }
+      },
+      flow: {
+        _attributes: {
+          xmlns: 'http://uxflow.com/schema/flow',
+          version: '1.0'
+        },
+        metadata: {
+          name: { _text: flow.metadata?.flowName || 'Untitled' },
+          version: { _text: String(flow.metadata?.version || 1) },
+          description: { _text: flow.metadata?.description || '' },
+          createdAt: { _text: flow.metadata?.createdAt || new Date().toISOString() },
+          updatedAt: { _text: flow.metadata?.updatedAt || new Date().toISOString() },
+          industry: { _text: flow.metadata?.industry || 'general' }
+        },
+        nodes: {
+          node: flow.nodes.map(node => ({
+            _attributes: {
+              id: node.id,
+              type: node.type
+            },
+            position: node.position ? {
+              x: { _text: String(node.position.x) },
+              y: { _text: String(node.position.y) }
+            } : undefined,
+            data: node.data ? {
+              label: { _text: node.data.label || '' },
+              description: { _text: node.data.description || '' },
+              properties: node.data.properties ? {
+                property: Object.entries(node.data.properties).map(([key, value]) => ({
+                  _attributes: { name: key },
+                  _text: String(value)
+                }))
+              } : undefined
+            } : undefined
+          }))
+        },
+        edges: {
+          edge: flow.edges.map(edge => ({
+            _attributes: {
+              id: edge.id,
+              source: edge.source,
+              target: edge.target
+            },
+            data: edge.data ? {
+              label: { _text: edge.data.label || '' },
+              condition: { _text: edge.data.condition || '' },
+              type: { _text: edge.data.type || 'default' }
+            } : undefined
+          }))
+        }
       }
-      xml += '    </node>\n';
-    }
-    
-    xml += '  </nodes>\n';
-    xml += '  <edges>\n';
-    
-    for (const edge of flow.edges) {
-      xml += `    <edge id="${edge.id}" source="${edge.source}" target="${edge.target}"/>\n`;
-    }
-    
-    xml += '  </edges>\n';
-    xml += '</flow>';
-    
-    return xml;
+    };
+
+    const options = {
+      compact: false,
+      ignoreComment: true,
+      spaces: 2
+    };
+
+    return js2xml(flowData, options);
   }
 
   /**
-   * Convert flow to YAML format
+   * Convert flow to YAML format with proper structure
    */
   convertToYAML(flow) {
-    let yaml = '# Flow Definition\n';
-    yaml += `name: ${flow.metadata?.flowName || 'Untitled'}\n`;
-    yaml += `version: ${flow.metadata?.version || 1}\n\n`;
-    yaml += 'nodes:\n';
-    
-    for (const node of flow.nodes) {
-      yaml += `  - id: ${node.id}\n`;
-      yaml += `    type: ${node.type}\n`;
-      if (node.data) {
-        yaml += `    data: ${JSON.stringify(node.data)}\n`;
+    const yamlData = {
+      flow: {
+        metadata: {
+          name: flow.metadata?.flowName || 'Untitled',
+          version: flow.metadata?.version || 1,
+          description: flow.metadata?.description || '',
+          createdAt: flow.metadata?.createdAt || new Date().toISOString(),
+          updatedAt: flow.metadata?.updatedAt || new Date().toISOString(),
+          industry: flow.metadata?.industry || 'general',
+          tags: flow.metadata?.tags || []
+        },
+        nodes: flow.nodes.map(node => ({
+          id: node.id,
+          type: node.type,
+          position: node.position || { x: 0, y: 0 },
+          data: {
+            label: node.data?.label || '',
+            description: node.data?.description || '',
+            properties: node.data?.properties || {},
+            style: node.data?.style || {}
+          }
+        })),
+        edges: flow.edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          data: {
+            label: edge.data?.label || '',
+            condition: edge.data?.condition || '',
+            type: edge.data?.type || 'default',
+            animated: edge.data?.animated || false
+          }
+        }))
       }
-    }
-    
-    yaml += '\nedges:\n';
-    
-    for (const edge of flow.edges) {
-      yaml += `  - id: ${edge.id}\n`;
-      yaml += `    source: ${edge.source}\n`;
-      yaml += `    target: ${edge.target}\n`;
-    }
-    
-    return yaml;
+    };
+
+    return yaml.dump(yamlData, {
+      indent: 2,
+      lineWidth: 120,
+      noRefs: true,
+      sortKeys: false,
+      quotingType: '"',
+      forceQuotes: false
+    });
   }
 
   /**
-   * Convert flow to Mermaid diagram format
+   * Convert flow to Mermaid diagram format with enhanced styling
    */
   convertToMermaid(flow) {
-    let mermaid = 'graph TD\n';
+    let mermaid = '%%{init: {"theme": "default", "themeVariables": {"primaryColor": "#fff"}}}%%\n';
+    mermaid += 'graph TD\n';
     
-    // Add nodes
+    // Style definitions
+    mermaid += '  classDef startEnd fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff\n';
+    mermaid += '  classDef decision fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff\n';
+    mermaid += '  classDef process fill:#2196F3,stroke:#333,stroke-width:2px,color:#fff\n';
+    mermaid += '  classDef action fill:#9C27B0,stroke:#333,stroke-width:2px,color:#fff\n\n';
+    
+    // Add nodes with proper escaping
     for (const node of flow.nodes) {
-      const label = node.data?.label || node.type;
+      const label = this.escapeMermaidLabel(node.data?.label || node.type);
+      const nodeId = this.sanitizeMermaidId(node.id);
+      
       switch (node.type) {
         case 'Start':
-          mermaid += `  ${node.id}((${label}))\n`;
-          break;
-        case 'Decision':
-          mermaid += `  ${node.id}{${label}}\n`;
+          mermaid += `  ${nodeId}((${label})):::startEnd\n`;
           break;
         case 'End':
-          mermaid += `  ${node.id}((${label}))\n`;
+          mermaid += `  ${nodeId}((${label})):::startEnd\n`;
+          break;
+        case 'Decision':
+          mermaid += `  ${nodeId}{${label}}:::decision\n`;
+          break;
+        case 'Action':
+          mermaid += `  ${nodeId}[[${label}]]:::action\n`;
+          break;
+        case 'Process':
+          mermaid += `  ${nodeId}[${label}]:::process\n`;
+          break;
+        case 'Screen':
+          mermaid += `  ${nodeId}[["${label}"]]:::process\n`;
           break;
         default:
-          mermaid += `  ${node.id}[${label}]\n`;
+          mermaid += `  ${nodeId}[${label}]\n`;
       }
     }
     
-    // Add edges
+    mermaid += '\n';
+    
+    // Add edges with labels
     for (const edge of flow.edges) {
-      const label = edge.data?.label || '';
+      const sourceId = this.sanitizeMermaidId(edge.source);
+      const targetId = this.sanitizeMermaidId(edge.target);
+      const label = edge.data?.label || edge.data?.condition || '';
+      
       if (label) {
-        mermaid += `  ${edge.source} -->|${label}| ${edge.target}\n`;
+        const escapedLabel = this.escapeMermaidLabel(label);
+        mermaid += `  ${sourceId} -->|${escapedLabel}| ${targetId}\n`;
       } else {
-        mermaid += `  ${edge.source} --> ${edge.target}\n`;
+        mermaid += `  ${sourceId} --> ${targetId}\n`;
+      }
+    }
+    
+    // Add click events for interactivity (optional)
+    mermaid += '\n';
+    for (const node of flow.nodes) {
+      const nodeId = this.sanitizeMermaidId(node.id);
+      if (node.data?.description) {
+        mermaid += `  click ${nodeId} callback "Node: ${node.data.description}"\n`;
       }
     }
     
     return mermaid;
+  }
+
+  /**
+   * Helper to escape special characters in Mermaid labels
+   */
+  escapeMermaidLabel(label) {
+    return label
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\|/g, '&#124;')
+      .replace(/\{/g, '&#123;')
+      .replace(/\}/g, '&#125;')
+      .replace(/\[/g, '&#91;')
+      .replace(/\]/g, '&#93;')
+      .replace(/\(/g, '&#40;')
+      .replace(/\)/g, '&#41;')
+      .replace(/\n/g, '<br/>');
+  }
+
+  /**
+   * Helper to sanitize node IDs for Mermaid
+   */
+  sanitizeMermaidId(id) {
+    // Replace special characters with underscores
+    return id.replace(/[^a-zA-Z0-9_]/g, '_');
   }
 
   /**

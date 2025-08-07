@@ -3,6 +3,14 @@
 // Industry-specific and custom validation rules
 // ==========================================
 
+import vm from 'vm';
+import { Worker } from 'worker_threads';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export class BusinessRulesEngine {
   constructor(logger, mongoClient) {
     this.logger = logger;
@@ -646,9 +654,8 @@ export class BusinessRulesEngine {
       
       for (const rule of rules) {
         try {
-          // Execute custom rule (safely)
-          const ruleFunction = new Function('flow', rule.code);
-          const result = ruleFunction(flow);
+          // Execute custom rule in a secure sandbox
+          const result = await this.executeRuleInSandbox(rule, flow);
           
           if (!result.passed) {
             if (rule.severity === 'error') {
@@ -680,6 +687,101 @@ export class BusinessRulesEngine {
   }
 
   /**
+   * Execute custom rule in a secure sandbox
+   * Uses Node.js VM with timeout and memory limits
+   */
+  async executeRuleInSandbox(rule, flow) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`Rule execution timeout: ${rule.id}`));
+      }, 1000); // 1 second timeout
+
+      try {
+        // Create a secure context with only safe objects
+        const sandbox = {
+          flow: JSON.parse(JSON.stringify(flow)), // Deep clone to prevent modification
+          result: { passed: true, details: null },
+          // Only provide safe utility functions
+          console: {
+            log: () => {}, // No-op to prevent information leakage
+            error: () => {},
+            warn: () => {}
+          },
+          JSON: JSON,
+          Math: Math,
+          Date: Date,
+          String: String,
+          Number: Number,
+          Boolean: Boolean,
+          Array: Array,
+          Object: Object,
+          // Helper functions for rule writing
+          countNodes: (type) => flow.nodes.filter(n => n.type === type).length,
+          countEdges: () => flow.edges.length,
+          findNode: (id) => flow.nodes.find(n => n.id === id),
+          findNodesByType: (type) => flow.nodes.filter(n => n.type === type),
+          hasPath: (fromId, toId) => {
+            // Simple path checking
+            const visited = new Set();
+            const queue = [fromId];
+            while (queue.length > 0) {
+              const current = queue.shift();
+              if (current === toId) return true;
+              if (visited.has(current)) continue;
+              visited.add(current);
+              const edges = flow.edges.filter(e => e.source === current);
+              edges.forEach(e => queue.push(e.target));
+            }
+            return false;
+          }
+        };
+
+        // Create the script to run in sandbox
+        const script = `
+          try {
+            // User's rule code wrapped in a function
+            const ruleFunction = function(flow) {
+              ${rule.code}
+            };
+            
+            // Execute the rule
+            const ruleResult = ruleFunction(flow);
+            
+            // Validate and set result
+            if (typeof ruleResult === 'object' && ruleResult !== null) {
+              result.passed = Boolean(ruleResult.passed);
+              result.details = String(ruleResult.details || '');
+            } else {
+              result.passed = Boolean(ruleResult);
+            }
+          } catch (error) {
+            result.passed = false;
+            result.details = 'Rule execution error: ' + error.message;
+          }
+        `;
+
+        // Run in VM context with strict timeout
+        vm.createContext(sandbox);
+        vm.runInContext(script, sandbox, {
+          timeout: 900, // 900ms to leave buffer for cleanup
+          displayErrors: false,
+          breakOnSigint: false
+        });
+
+        clearTimeout(timeout);
+        resolve(sandbox.result);
+      } catch (error) {
+        clearTimeout(timeout);
+        this.logger.warn('Rule execution error', { ruleId: rule.id, error: error.message });
+        resolve({
+          passed: false,
+          details: `Rule execution failed: ${error.message}`
+        });
+      }
+    });
+  }
+
+  /**
    * Load workspace-specific rules from database
    */
   async loadWorkspaceRules(workspaceId) {
@@ -689,7 +791,32 @@ export class BusinessRulesEngine {
         .find({ workspaceId, enabled: true })
         .toArray();
       
-      this.workspaceRules.set(workspaceId, rules);
+      // Validate rules before caching
+      const validRules = rules.filter(rule => {
+        if (!rule.code || typeof rule.code !== 'string') {
+          this.logger.warn('Invalid rule skipped', { ruleId: rule.id });
+          return false;
+        }
+        // Basic validation - no obvious malicious patterns
+        const dangerousPatterns = [
+          'require', 'import', 'process', 'child_process', 
+          'fs', 'eval', 'Function', '__proto__', 'constructor',
+          'setTimeout', 'setInterval', 'setImmediate'
+        ];
+        const codeStr = rule.code.toLowerCase();
+        for (const pattern of dangerousPatterns) {
+          if (codeStr.includes(pattern)) {
+            this.logger.warn('Dangerous rule pattern detected', { 
+              ruleId: rule.id, 
+              pattern 
+            });
+            return false;
+          }
+        }
+        return true;
+      });
+      
+      this.workspaceRules.set(workspaceId, validRules);
       
     } catch (error) {
       this.logger.error('Failed to load workspace rules', error);

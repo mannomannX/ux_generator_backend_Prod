@@ -9,13 +9,16 @@ class VersioningService {
     this.mongoClient = mongoClient;
   }
 
-  async createVersion(flowId, flowData, userId, description = null) {
+  async createVersion(flowId, flowData, userId, description = null, session = null) {
     try {
       const db = this.mongoClient.getDb();
       const versionsCollection = db.collection('flow_versions');
 
-      // Get current version count for this flow
-      const versionCount = await versionsCollection.countDocuments({ flowId });
+      // Get current version count for this flow (use session if in transaction)
+      const versionCount = await versionsCollection.countDocuments(
+        { flowId },
+        session ? { session } : {}
+      );
       const versionNumber = versionCount + 1;
 
       // Create version document
@@ -34,7 +37,10 @@ class VersioningService {
         },
       };
 
-      const result = await versionsCollection.insertOne(version);
+      const result = await versionsCollection.insertOne(
+        version,
+        session ? { session } : {}
+      );
       const versionId = result.insertedId.toString();
 
       // Update flow with latest version reference
@@ -46,7 +52,8 @@ class VersioningService {
             'metadata.latestVersionId': versionId,
             'metadata.versionCount': versionNumber,
           },
-        }
+        },
+        session ? { session } : {}
       );
 
       this.logger.info('Flow version created', {
@@ -173,18 +180,35 @@ class VersioningService {
         },
       };
 
-      await flowsCollection.replaceOne(
-        { _id: MongoClient.createObjectId(flowId) },
-        restoredFlowData
-      );
+      // Use transaction for atomic restore
+      const session = this.mongoClient.getClient().startSession();
+      
+      try {
+        await session.withTransaction(async () => {
+          // Replace the flow
+          await flowsCollection.replaceOne(
+            { _id: MongoClient.createObjectId(flowId) },
+            restoredFlowData,
+            { session }
+          );
 
-      // Create a new version for this restoration
-      await this.createVersion(
-        flowId,
-        restoredFlowData,
-        userId,
-        `Restored from version ${versionNumber}`
-      );
+          // Create a new version for this restoration
+          await this.createVersion(
+            flowId,
+            restoredFlowData,
+            userId,
+            `Restored from version ${versionNumber}`,
+            session
+          );
+        }, {
+          readPreference: 'primary',
+          readConcern: { level: 'local' },
+          writeConcern: { w: 'majority' },
+          maxCommitTimeMS: 5000
+        });
+      } finally {
+        await session.endSession();
+      }
 
       this.logger.info('Flow version restored', {
         flowId,

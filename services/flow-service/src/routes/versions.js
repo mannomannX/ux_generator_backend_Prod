@@ -2,11 +2,12 @@
 // SERVICES/FLOW-SERVICE/src/routes/versions.js
 // ==========================================
 import express from 'express';
+import { checkFlowPermission, checkVersionRestorePermission } from '../middleware/authorization.js';
 
 const router = express.Router();
 
 // Get all versions for a flow
-router.get('/flow/:flowId', async (req, res) => {
+router.get('/flow/:flowId', checkFlowPermission('read'), async (req, res) => {
   try {
     const { flowId } = req.params;
     const { page = 1, limit = 20, includeData = false } = req.query;
@@ -29,7 +30,7 @@ router.get('/flow/:flowId', async (req, res) => {
 });
 
 // Get specific version
-router.get('/flow/:flowId/version/:versionNumber', async (req, res) => {
+router.get('/flow/:flowId/version/:versionNumber', checkFlowPermission('read'), async (req, res) => {
   try {
     const { flowId, versionNumber } = req.params;
 
@@ -97,7 +98,7 @@ router.post('/flow/:flowId/snapshot', async (req, res) => {
 });
 
 // Restore flow to specific version
-router.post('/flow/:flowId/restore/:versionNumber', async (req, res) => {
+router.post('/flow/:flowId/restore/:versionNumber', checkVersionRestorePermission, async (req, res) => {
   try {
     const { flowId, versionNumber } = req.params;
     const userId = req.headers['x-user-id'];

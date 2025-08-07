@@ -12,17 +12,26 @@ export class CollaborationService extends EventEmitter {
     this.redisClient = redisClient;
     this.mongoClient = mongoClient;
     
-    // Active collaboration sessions
+    // Active collaboration sessions with TTL
     this.sessions = new Map();
     
-    // Operation history for OT
+    // Operation history for OT (with size limits)
     this.operationHistory = new Map();
+    this.maxHistorySize = 1000; // Keep last 1000 operations per flow
     
-    // User presence tracking
+    // User presence tracking with TTL
     this.userPresence = new Map();
+    this.presenceTTL = 5 * 60 * 1000; // 5 minutes
+    
+    // Session cleanup intervals
+    this.sessionTimeout = 30 * 60 * 1000; // 30 minutes of inactivity
+    this.cleanupInterval = null;
     
     // Initialize Redis pub/sub for real-time sync
     this.initializeRedisPubSub();
+    
+    // Start cleanup job
+    this.startCleanupJob();
   }
 
   /**
@@ -65,7 +74,7 @@ export class CollaborationService extends EventEmitter {
       const session = this.sessions.get(sessionKey);
       
       // Add user to session
-      session.users.set(userId, {
+      const userPresenceData = {
         userId,
         name: userInfo.name,
         email: userInfo.email,
@@ -74,8 +83,16 @@ export class CollaborationService extends EventEmitter {
         cursor: null,
         selection: null,
         joinedAt: Date.now(),
-        lastActivity: Date.now()
-      });
+        lastActivity: Date.now(),
+        flowId
+      };
+      
+      session.users.set(userId, userPresenceData);
+      session.lastActivity = Date.now();
+      
+      // Store in local presence map for cleanup tracking
+      const presenceKey = `${flowId}:${userId}`;
+      this.userPresence.set(presenceKey, userPresenceData);
       
       // Store presence in Redis for distributed systems
       await this.redisClient.setex(
@@ -171,17 +188,23 @@ export class CollaborationService extends EventEmitter {
         sequenceNumber
       );
       
-      // Store operation in history
+      // Store operation in history with size limit
       if (!this.operationHistory.has(flowId)) {
         this.operationHistory.set(flowId, []);
       }
       
-      this.operationHistory.get(flowId).push({
+      const history = this.operationHistory.get(flowId);
+      history.push({
         sequence: sequenceNumber,
         userId,
         operation: transformedOp,
         timestamp: Date.now()
       });
+      
+      // Trim history if it exceeds maximum size
+      if (history.length > this.maxHistorySize) {
+        history.splice(0, history.length - this.maxHistorySize);
+      }
       
       // Apply operation to flow (delegate to flow-manager)
       const result = await this.applyOperationToFlow(flowId, transformedOp);
@@ -567,19 +590,192 @@ export class CollaborationService extends EventEmitter {
   }
 
   /**
+   * Start periodic cleanup job
+   */
+  startCleanupJob() {
+    // Run cleanup every 5 minutes
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupInactiveSessions();
+      this.cleanupOperationHistory();
+      this.cleanupUserPresence();
+    }, 5 * 60 * 1000);
+    
+    this.logger.info('Collaboration cleanup job started');
+  }
+
+  /**
+   * Stop cleanup job
+   */
+  stopCleanupJob() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+      this.logger.info('Collaboration cleanup job stopped');
+    }
+  }
+
+  /**
    * Periodic cleanup of inactive sessions
    */
   async cleanupInactiveSessions() {
     const now = Date.now();
-    const timeout = 3600000; // 1 hour
+    const sessionsToDelete = [];
     
     for (const [key, session] of this.sessions.entries()) {
-      if (now - session.lastActivity > timeout) {
-        this.logger.info('Cleaning up inactive session', { flowId: session.flowId });
-        this.sessions.delete(key);
-        await this.cleanupSessionData(session.flowId);
+      if (now - session.lastActivity > this.sessionTimeout) {
+        sessionsToDelete.push(key);
       }
     }
+    
+    for (const key of sessionsToDelete) {
+      const session = this.sessions.get(key);
+      this.logger.info('Cleaning up inactive session', { 
+        flowId: session.flowId,
+        userCount: session.users.size,
+        inactiveFor: Math.round((now - session.lastActivity) / 1000 / 60) + ' minutes'
+      });
+      
+      // Notify remaining users (if any)
+      if (session.users.size > 0) {
+        await this.broadcastToFlow(session.flowId, {
+          type: 'session_timeout',
+          message: 'Session timed out due to inactivity',
+          timestamp: now
+        });
+      }
+      
+      this.sessions.delete(key);
+      await this.cleanupSessionData(session.flowId);
+    }
+    
+    if (sessionsToDelete.length > 0) {
+      this.logger.info(`Cleaned up ${sessionsToDelete.length} inactive sessions`);
+    }
+  }
+
+  /**
+   * Clean up operation history to prevent unbounded growth
+   */
+  cleanupOperationHistory() {
+    let totalCleaned = 0;
+    
+    for (const [flowId, history] of this.operationHistory.entries()) {
+      if (Array.isArray(history) && history.length > this.maxHistorySize) {
+        // Keep only the most recent operations
+        const trimmed = history.slice(-this.maxHistorySize);
+        const cleaned = history.length - trimmed.length;
+        this.operationHistory.set(flowId, trimmed);
+        totalCleaned += cleaned;
+        
+        this.logger.debug(`Trimmed ${cleaned} old operations for flow ${flowId}`);
+      }
+      
+      // Remove history for flows with no active sessions
+      const sessionKey = `session:${flowId}`;
+      if (!this.sessions.has(sessionKey)) {
+        this.operationHistory.delete(flowId);
+        this.logger.debug(`Removed operation history for inactive flow ${flowId}`);
+      }
+    }
+    
+    if (totalCleaned > 0) {
+      this.logger.info(`Cleaned up ${totalCleaned} old operations from history`);
+    }
+  }
+
+  /**
+   * Clean up user presence data
+   */
+  async cleanupUserPresence() {
+    const now = Date.now();
+    const presenceToDelete = [];
+    
+    for (const [key, presence] of this.userPresence.entries()) {
+      if (now - presence.lastActivity > this.presenceTTL) {
+        presenceToDelete.push(key);
+      }
+    }
+    
+    for (const key of presenceToDelete) {
+      const presence = this.userPresence.get(key);
+      this.userPresence.delete(key);
+      
+      // Also remove from Redis
+      if (presence) {
+        const redisKey = `presence:${presence.flowId}:${presence.userId}`;
+        await this.redisClient.del(redisKey);
+      }
+    }
+    
+    if (presenceToDelete.length > 0) {
+      this.logger.debug(`Cleaned up ${presenceToDelete.length} stale presence entries`);
+    }
+  }
+
+  /**
+   * Clean up all session-related data for a flow
+   */
+  async cleanupSessionData(flowId) {
+    // Remove operation history
+    this.operationHistory.delete(flowId);
+    
+    // Remove user presence for this flow
+    const presenceKeysToDelete = [];
+    for (const [key, presence] of this.userPresence.entries()) {
+      if (presence.flowId === flowId) {
+        presenceKeysToDelete.push(key);
+      }
+    }
+    
+    for (const key of presenceKeysToDelete) {
+      this.userPresence.delete(key);
+    }
+    
+    // Clean up Redis presence data using SCAN instead of KEYS
+    const pattern = `presence:${flowId}:*`;
+    const stream = this.redisClient.scanStream({
+      match: pattern,
+      count: 100
+    });
+    
+    const keysToDelete = [];
+    for await (const keys of stream) {
+      keysToDelete.push(...keys);
+    }
+    
+    if (keysToDelete.length > 0) {
+      await this.redisClient.del(...keysToDelete);
+    }
+    
+    this.logger.debug(`Cleaned up all session data for flow ${flowId}`);
+  }
+
+  /**
+   * Graceful shutdown
+   */
+  async shutdown() {
+    this.stopCleanupJob();
+    
+    // Close all active sessions
+    for (const [key, session] of this.sessions.entries()) {
+      await this.broadcastToFlow(session.flowId, {
+        type: 'service_shutdown',
+        message: 'Collaboration service shutting down',
+        timestamp: Date.now()
+      });
+    }
+    
+    // Clear all in-memory data
+    this.sessions.clear();
+    this.operationHistory.clear();
+    this.userPresence.clear();
+    
+    // Close Redis subscriber
+    if (this.redisSubscriber) {
+      await this.redisSubscriber.quit();
+    }
+    
+    this.logger.info('Collaboration service shut down gracefully');
   }
 }
 

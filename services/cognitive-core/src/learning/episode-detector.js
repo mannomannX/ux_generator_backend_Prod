@@ -9,7 +9,8 @@
  * - User provides feedback that indicates the AI response needs improvement
  */
 
-const { EventEmitter } = require('events');
+import { EventEmitter } from 'events';
+import crypto from 'crypto';
 
 class EpisodeDetector extends EventEmitter {
   constructor(logger, mongoClient) {
@@ -282,9 +283,10 @@ class EpisodeDetector extends EventEmitter {
   /**
    * Cleanup expired episodes
    */
-  cleanupExpiredEpisodes() {
+  async cleanupExpiredEpisodes() {
     if (!this.config.enabled) return;
 
+    // Cleanup in-memory expired episodes
     const now = Date.now();
     const expiredEpisodes = [];
 
@@ -299,9 +301,298 @@ class EpisodeDetector extends EventEmitter {
     }
 
     if (expiredEpisodes.length > 0) {
-      this.logger.debug('Cleaned up expired episodes', {
+      this.logger.debug('Cleaned up expired in-memory episodes', {
         count: expiredEpisodes.length
       });
+    }
+
+    // Also prune old episodes from database
+    await this.pruneOldEpisodes();
+  }
+
+  /**
+   * Prune old episodes from MongoDB storage
+   * Removes episodes older than retention period and implements archive strategy
+   */
+  async pruneOldEpisodes() {
+    if (!this.config.enabled) return;
+
+    try {
+      const collection = this.mongoClient.db('learning').collection('episodes');
+      const now = new Date();
+      
+      // Configuration for pruning
+      const retentionConfig = {
+        // Keep all episodes for 30 days
+        fullRetentionDays: 30,
+        // Keep analyzed episodes for 90 days  
+        analyzedRetentionDays: 90,
+        // Keep completed episodes for 60 days
+        completedRetentionDays: 60,
+        // Keep failed/expired episodes for 7 days only
+        failedRetentionDays: 7,
+        // Archive episodes older than 180 days
+        archiveAfterDays: 180
+      };
+
+      const results = {
+        expired: 0,
+        completed: 0, 
+        analyzed: 0,
+        archived: 0,
+        errors: []
+      };
+
+      // 1. Remove very old expired/failed episodes (7 days)
+      const failedCutoff = new Date(now - retentionConfig.failedRetentionDays * 24 * 60 * 60 * 1000);
+      try {
+        const failedResult = await collection.deleteMany({
+          'indexFields.status': { $in: ['expired', 'failed'] },
+          'indexFields.createdAt': { $lt: failedCutoff }
+        });
+        results.expired = failedResult.deletedCount;
+      } catch (error) {
+        this.logger.error('Failed to prune expired episodes', error);
+        results.errors.push(`Failed episodes: ${error.message}`);
+      }
+
+      // 2. Remove old completed episodes (60 days)
+      const completedCutoff = new Date(now - retentionConfig.completedRetentionDays * 24 * 60 * 60 * 1000);
+      try {
+        const completedResult = await collection.deleteMany({
+          'indexFields.status': 'completed',
+          analyzedAt: null, // Not yet analyzed
+          'indexFields.createdAt': { $lt: completedCutoff }
+        });
+        results.completed = completedResult.deletedCount;
+      } catch (error) {
+        this.logger.error('Failed to prune completed episodes', error);
+        results.errors.push(`Completed episodes: ${error.message}`);
+      }
+
+      // 3. Archive or remove very old analyzed episodes (90 days)
+      const analyzedCutoff = new Date(now - retentionConfig.analyzedRetentionDays * 24 * 60 * 60 * 1000);
+      try {
+        // First, archive episodes that are valuable but old
+        await this.archiveValuableEpisodes(analyzedCutoff);
+        
+        // Then remove regular analyzed episodes
+        const analyzedResult = await collection.deleteMany({
+          'indexFields.status': 'analyzed',
+          'indexFields.createdAt': { $lt: analyzedCutoff },
+          archived: { $ne: true }
+        });
+        results.analyzed = analyzedResult.deletedCount;
+      } catch (error) {
+        this.logger.error('Failed to prune analyzed episodes', error);
+        results.errors.push(`Analyzed episodes: ${error.message}`);
+      }
+
+      // 4. Maintain episode count limits per user
+      await this.enforceUserEpisodeLimits();
+
+      // 5. Update statistics
+      if (results.expired + results.completed + results.analyzed > 0) {
+        this.logger.info('Episode pruning completed', {
+          removed: {
+            expired: results.expired,
+            completed: results.completed,
+            analyzed: results.analyzed
+          },
+          archived: results.archived,
+          errors: results.errors
+        });
+      }
+
+      return results;
+
+    } catch (error) {
+      this.logger.error('Episode pruning failed', error);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Archive valuable episodes before deletion
+   * Archives episodes that might be valuable for future learning
+   */
+  async archiveValuableEpisodes(cutoffDate) {
+    try {
+      const collection = this.mongoClient.db('learning').collection('episodes');
+      const archiveCollection = this.mongoClient.db('learning').collection('archived_episodes');
+
+      // Find valuable episodes to archive
+      const valuableEpisodes = await collection.find({
+        'indexFields.status': 'analyzed',
+        'indexFields.createdAt': { $lt: cutoffDate },
+        $or: [
+          { 'analysis.confidence': { $gte: 0.8 } }, // High confidence analysis
+          { 'analysis.priority': 'high' },         // High priority suggestions
+          { 'classification.intent': 'correction' }, // Corrective feedback episodes
+          { agentUsed: 'analyst' }                  // Analysis episodes
+        ],
+        archived: { $ne: true }
+      }).limit(100).toArray(); // Limit to prevent memory issues
+
+      if (valuableEpisodes.length > 0) {
+        // Prepare archive documents
+        const archiveDocuments = valuableEpisodes.map(episode => ({
+          ...episode,
+          archivedAt: new Date(),
+          originalId: episode._id,
+          retentionReason: this.determineRetentionReason(episode)
+        }));
+
+        // Insert into archive collection
+        await archiveCollection.insertMany(archiveDocuments);
+
+        // Mark original episodes as archived
+        const episodeIds = valuableEpisodes.map(e => e._id);
+        await collection.updateMany(
+          { _id: { $in: episodeIds } },
+          { 
+            $set: { 
+              archived: true,
+              archivedAt: new Date()
+            }
+          }
+        );
+
+        this.logger.info(`Archived ${valuableEpisodes.length} valuable episodes`);
+        return valuableEpisodes.length;
+      }
+
+      return 0;
+
+    } catch (error) {
+      this.logger.error('Failed to archive valuable episodes', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Determine why an episode should be retained in archive
+   */
+  determineRetentionReason(episode) {
+    const reasons = [];
+
+    if (episode.analysis?.confidence >= 0.8) {
+      reasons.push('high_confidence_analysis');
+    }
+    if (episode.analysis?.priority === 'high') {
+      reasons.push('high_priority_suggestion');
+    }
+    if (episode.classification?.intent === 'correction') {
+      reasons.push('corrective_feedback');
+    }
+    if (episode.agentUsed === 'analyst') {
+      reasons.push('analysis_episode');
+    }
+    if (episode.analysis?.sourceAgent && ['planner', 'architect'].includes(episode.analysis.sourceAgent)) {
+      reasons.push('core_agent_improvement');
+    }
+
+    return reasons.length > 0 ? reasons : ['default_retention'];
+  }
+
+  /**
+   * Enforce per-user episode limits
+   * Removes oldest episodes if user has too many
+   */
+  async enforceUserEpisodeLimits() {
+    try {
+      const collection = this.mongoClient.db('learning').collection('episodes');
+      const maxEpisodesPerUser = this.config.maxEpisodesPerUser || 100;
+
+      // Get users with too many episodes
+      const userCounts = await collection.aggregate([
+        {
+          $group: {
+            _id: '$userId',
+            count: { $sum: 1 },
+            oldestEpisode: { $min: '$indexFields.createdAt' }
+          }
+        },
+        {
+          $match: {
+            count: { $gt: maxEpisodesPerUser }
+          }
+        }
+      ]).toArray();
+
+      for (const userCount of userCounts) {
+        const userId = userCount._id;
+        const excessCount = userCount.count - maxEpisodesPerUser;
+
+        // Remove oldest episodes for this user
+        const oldestEpisodes = await collection.find({
+          'indexFields.userId': userId
+        })
+        .sort({ 'indexFields.createdAt': 1 })
+        .limit(excessCount)
+        .toArray();
+
+        if (oldestEpisodes.length > 0) {
+          const episodeIds = oldestEpisodes.map(e => e._id);
+          await collection.deleteMany({ _id: { $in: episodeIds } });
+
+          this.logger.info(`Removed ${oldestEpisodes.length} excess episodes for user ${userId}`);
+        }
+      }
+
+    } catch (error) {
+      this.logger.error('Failed to enforce user episode limits', error);
+    }
+  }
+
+  /**
+   * Get episode storage statistics
+   */
+  async getStorageStatistics() {
+    try {
+      const collection = this.mongoClient.db('learning').collection('episodes');
+      const archiveCollection = this.mongoClient.db('learning').collection('archived_episodes');
+
+      const [episodeStats, archiveStats] = await Promise.all([
+        collection.aggregate([
+          {
+            $group: {
+              _id: '$indexFields.status',
+              count: { $sum: 1 },
+              oldestDate: { $min: '$indexFields.createdAt' },
+              newestDate: { $max: '$indexFields.createdAt' }
+            }
+          }
+        ]).toArray(),
+        archiveCollection.countDocuments()
+      ]);
+
+      const totalEpisodes = episodeStats.reduce((sum, stat) => sum + stat.count, 0);
+
+      return {
+        totalEpisodes,
+        archivedEpisodes: archiveStats,
+        episodesByStatus: episodeStats.reduce((acc, stat) => {
+          acc[stat._id] = {
+            count: stat.count,
+            oldestDate: stat.oldestDate,
+            newestDate: stat.newestDate
+          };
+          return acc;
+        }, {}),
+        storageHealth: {
+          status: totalEpisodes > 10000 ? 'high' : totalEpisodes > 5000 ? 'medium' : 'low',
+          recommendation: totalEpisodes > 10000 
+            ? 'Consider more aggressive pruning'
+            : totalEpisodes > 5000 
+            ? 'Monitor storage usage'
+            : 'Storage usage normal'
+        }
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to get storage statistics', error);
+      return { error: error.message };
     }
   }
 
@@ -309,7 +600,6 @@ class EpisodeDetector extends EventEmitter {
    * Generate unique episode ID
    */
   generateEpisodeId() {
-    const crypto = require('crypto');
     const randomBytes = crypto.randomBytes(4).toString('hex');
     return `episode_${Date.now()}_${randomBytes}`;
   }
@@ -406,4 +696,4 @@ class EpisodeDetector extends EventEmitter {
   }
 }
 
-module.exports = { EpisodeDetector };
+export { EpisodeDetector };

@@ -156,28 +156,45 @@ class FlowManager {
       updatedFlow.metadata.updatedAt = new Date();
       updatedFlow.metadata.version = this.incrementVersion(currentFlow.metadata.version);
 
-      // Store in database
+      // Store in database with atomic transaction
       const db = this.mongoClient.getDb();
       const flowsCollection = db.collection('flows');
       
-      const result = await flowsCollection.replaceOne(
-        { _id: MongoClient.createObjectId(flowId) },
-        updatedFlow
-      );
+      // Use MongoDB transaction for atomic operations
+      const session = this.mongoClient.getClient().startSession();
+      
+      try {
+        await session.withTransaction(async () => {
+          // Update flow document
+          const result = await flowsCollection.replaceOne(
+            { _id: MongoClient.createObjectId(flowId) },
+            updatedFlow,
+            { session }
+          );
 
-      if (result.matchedCount === 0) {
-        throw new Error('Flow not found for update');
+          if (result.matchedCount === 0) {
+            throw new Error('Flow not found for update');
+          }
+
+          // Create new version atomically
+          await this.versioningService.createVersion(
+            flowId,
+            updatedFlow,
+            userId,
+            `Applied ${transactions.length} transaction(s)`,
+            session
+          );
+        }, {
+          readPreference: 'primary',
+          readConcern: { level: 'local' },
+          writeConcern: { w: 'majority' },
+          maxCommitTimeMS: 5000
+        });
+      } finally {
+        await session.endSession();
       }
 
-      // Create new version
-      await this.versioningService.createVersion(
-        flowId,
-        updatedFlow,
-        userId,
-        `Applied ${transactions.length} transaction(s)`
-      );
-
-          // Invalidate and update cache
+      // Invalidate and update cache (outside transaction for performance)
       await this.invalidateFlowCache(flowId, projectId, updatedFlow.metadata.workspaceId);
       await this.cacheFlow(flowId, updatedFlow);
 

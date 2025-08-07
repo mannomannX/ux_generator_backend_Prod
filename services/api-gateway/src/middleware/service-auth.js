@@ -1,18 +1,21 @@
-// ==========================================
-// SERVICES/API-GATEWAY/src/middleware/service-auth.js
-// ==========================================
+/**
+ * Fixed Service-to-Service Authentication with Proper Nonce Handling
+ */
+
 import crypto from 'crypto';
 import { AuthenticationError } from './error-handler.js';
 
 /**
- * Service-to-service authentication middleware
+ * Service-to-service authentication middleware with improved security
  */
 export class ServiceAuthenticator {
   constructor(logger, redisClient) {
     this.logger = logger;
     this.redisClient = redisClient;
     this.serviceSecrets = new Map();
+    this.localNonceCache = new Map(); // Fallback for when Redis is unavailable
     this.loadServiceSecrets();
+    this.startNonceCleanup();
   }
 
   loadServiceSecrets() {
@@ -26,17 +29,32 @@ export class ServiceAuthenticator {
     ];
 
     for (const serviceName of services) {
-      const secretKey = process.env[`${serviceName.toUpperCase().replace('-', '_')}_SECRET`];
+      const envKey = `${serviceName.toUpperCase().replace('-', '_')}_SECRET`;
+      const secretKey = process.env[envKey];
+      
       if (secretKey) {
+        // Validate secret strength
+        if (secretKey.length < 32) {
+          this.logger.warn(`Weak secret for service ${serviceName} - should be at least 32 characters`);
+        }
         this.serviceSecrets.set(serviceName, secretKey);
+      } else {
+        // Generate a default secret for development (not for production!)
+        if (process.env.NODE_ENV !== 'production') {
+          const defaultSecret = crypto.randomBytes(32).toString('hex');
+          this.serviceSecrets.set(serviceName, defaultSecret);
+          this.logger.warn(`Generated temporary secret for ${serviceName} (development only)`);
+        } else {
+          this.logger.error(`No secret configured for service: ${serviceName}`);
+        }
       }
     }
   }
 
   /**
-   * Generate service authentication token
+   * Generate service authentication token with body signature
    */
-  generateServiceToken(fromService, toService, payload = {}) {
+  generateServiceToken(fromService, toService, payload = {}, requestBody = null) {
     const secret = this.serviceSecrets.get(fromService);
     if (!secret) {
       throw new Error(`No secret configured for service: ${fromService}`);
@@ -47,41 +65,72 @@ export class ServiceAuthenticator {
       toService,
       payload,
       timestamp: Date.now(),
-      nonce: crypto.randomBytes(16).toString('hex')
+      nonce: crypto.randomBytes(16).toString('hex'),
+      version: '2.0' // Version for compatibility
     };
+
+    // Add body hash if request body is provided
+    if (requestBody !== null) {
+      const bodyString = typeof requestBody === 'string' 
+        ? requestBody 
+        : JSON.stringify(requestBody);
+      tokenData.bodyHash = crypto
+        .createHash('sha256')
+        .update(bodyString)
+        .digest('hex');
+    }
 
     const signature = this.signPayload(JSON.stringify(tokenData), secret);
     
     return {
       token: Buffer.from(JSON.stringify(tokenData)).toString('base64'),
-      signature
+      signature,
+      bodyHash: tokenData.bodyHash
     };
   }
 
   /**
-   * Verify service authentication token
+   * Verify service authentication token with enhanced security
    */
-  async verifyServiceToken(token, signature, expectedFromService) {
+  async verifyServiceToken(token, signature, expectedFromService, requestBody = null) {
     try {
+      // Decode token
       const tokenData = JSON.parse(Buffer.from(token, 'base64').toString());
-      const { fromService, toService, timestamp, nonce } = tokenData;
+      const { fromService, toService, timestamp, nonce, bodyHash, version } = tokenData;
 
       // Verify service identity
       if (fromService !== expectedFromService) {
-        throw new Error(`Invalid service identity: ${fromService}`);
+        throw new Error(`Invalid service identity: expected ${expectedFromService}, got ${fromService}`);
       }
 
       // Check timestamp (token valid for 5 minutes)
       const maxAge = 5 * 60 * 1000; // 5 minutes
-      if (Date.now() - timestamp > maxAge) {
-        throw new Error('Service token expired');
+      const tokenAge = Date.now() - timestamp;
+      if (tokenAge > maxAge) {
+        throw new Error(`Service token expired (age: ${Math.floor(tokenAge / 1000)}s)`);
+      }
+
+      // Check for future timestamps (clock skew tolerance: 30 seconds)
+      if (tokenAge < -30000) {
+        throw new Error('Service token timestamp is in the future (clock skew?)');
+      }
+
+      // Verify body hash if present
+      if (bodyHash && requestBody !== null) {
+        const actualBodyHash = crypto
+          .createHash('sha256')
+          .update(typeof requestBody === 'string' ? requestBody : JSON.stringify(requestBody))
+          .digest('hex');
+        
+        if (bodyHash !== actualBodyHash) {
+          throw new Error('Request body has been tampered with');
+        }
       }
 
       // Check nonce for replay attack prevention
-      const nonceKey = `service:nonce:${fromService}:${nonce}`;
-      const usedNonce = await this.redisClient?.get(nonceKey);
-      if (usedNonce) {
-        throw new Error('Service token already used (replay attack)');
+      const isReplay = await this.checkNonce(fromService, nonce);
+      if (isReplay) {
+        throw new Error('Service token already used (replay attack detected)');
       }
 
       // Verify signature
@@ -91,14 +140,14 @@ export class ServiceAuthenticator {
       }
 
       const expectedSignature = this.signPayload(JSON.stringify(tokenData), secret);
-      if (signature !== expectedSignature) {
+      
+      // Constant-time comparison to prevent timing attacks
+      if (!this.secureCompare(signature, expectedSignature)) {
         throw new Error('Invalid service token signature');
       }
 
       // Mark nonce as used
-      if (this.redisClient) {
-        await this.redisClient.set(nonceKey, '1', 'EX', 600); // 10 minutes
-      }
+      await this.markNonceAsUsed(fromService, nonce, maxAge);
 
       return tokenData;
     } catch (error) {
@@ -106,8 +155,84 @@ export class ServiceAuthenticator {
         error: error.message,
         expectedFromService
       });
-      throw new AuthenticationError('Service authentication failed');
+      throw new AuthenticationError(`Service authentication failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Check if nonce has been used (with Redis fallback)
+   */
+  async checkNonce(serviceName, nonce) {
+    const nonceKey = `service:nonce:${serviceName}:${nonce}`;
+    
+    // Try Redis first
+    if (this.redisClient) {
+      try {
+        const exists = await this.redisClient.exists(nonceKey);
+        return exists > 0;
+      } catch (error) {
+        this.logger.warn('Redis unavailable for nonce check, using local cache', error.message);
+      }
+    }
+    
+    // Fallback to local cache
+    const localKey = `${serviceName}:${nonce}`;
+    return this.localNonceCache.has(localKey);
+  }
+
+  /**
+   * Mark nonce as used (with Redis fallback)
+   */
+  async markNonceAsUsed(serviceName, nonce, maxAge) {
+    const nonceKey = `service:nonce:${serviceName}:${nonce}`;
+    const ttl = Math.ceil(maxAge / 1000) + 60; // Add buffer
+    
+    // Try Redis first
+    if (this.redisClient) {
+      try {
+        await this.redisClient.set(nonceKey, '1', 'EX', ttl);
+        return;
+      } catch (error) {
+        this.logger.warn('Redis unavailable for nonce storage, using local cache', error.message);
+      }
+    }
+    
+    // Fallback to local cache
+    const localKey = `${serviceName}:${nonce}`;
+    const expiry = Date.now() + (ttl * 1000);
+    this.localNonceCache.set(localKey, expiry);
+  }
+
+  /**
+   * Clean up expired nonces from local cache
+   */
+  cleanupLocalNonces() {
+    const now = Date.now();
+    const expired = [];
+    
+    for (const [key, expiry] of this.localNonceCache.entries()) {
+      if (expiry < now) {
+        expired.push(key);
+      }
+    }
+    
+    for (const key of expired) {
+      this.localNonceCache.delete(key);
+    }
+    
+    if (expired.length > 0) {
+      this.logger.debug(`Cleaned up ${expired.length} expired nonces from local cache`);
+    }
+  }
+
+  /**
+   * Start periodic nonce cleanup
+   */
+  startNonceCleanup() {
+    // Clean up local nonces every minute
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupLocalNonces();
+    }, 60000);
   }
 
   /**
@@ -121,9 +246,27 @@ export class ServiceAuthenticator {
   }
 
   /**
+   * Constant-time string comparison to prevent timing attacks
+   */
+  secureCompare(a, b) {
+    if (a.length !== b.length) {
+      return false;
+    }
+    
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+      result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    
+    return result === 0;
+  }
+
+  /**
    * Middleware for service-to-service authentication
    */
-  requireServiceAuth(expectedFromService) {
+  requireServiceAuth(expectedFromService, options = {}) {
+    const { requireBodyVerification = false } = options;
+    
     return async (req, res, next) => {
       try {
         const authHeader = req.headers['x-service-auth'];
@@ -133,10 +276,17 @@ export class ServiceAuthenticator {
           throw new AuthenticationError('Service authentication headers missing');
         }
 
+        // Get request body for verification if required
+        let requestBody = null;
+        if (requireBodyVerification && req.body) {
+          requestBody = req.body;
+        }
+
         const tokenData = await this.verifyServiceToken(
           authHeader,
           signatureHeader,
-          expectedFromService
+          expectedFromService,
+          requestBody
         );
 
         // Attach service info to request
@@ -144,7 +294,8 @@ export class ServiceAuthenticator {
           fromService: tokenData.fromService,
           toService: tokenData.toService,
           payload: tokenData.payload,
-          timestamp: tokenData.timestamp
+          timestamp: tokenData.timestamp,
+          version: tokenData.version
         };
 
         this.logger?.info('Service authenticated', {
@@ -163,11 +314,22 @@ export class ServiceAuthenticator {
 
         res.status(401).json({
           error: 'Service authentication failed',
-          message: 'Invalid or missing service authentication',
+          message: error.message,
           correlationId: req.correlationId
         });
       }
     };
+  }
+
+  /**
+   * Clean up resources
+   */
+  destroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.localNonceCache.clear();
   }
 }
 
@@ -195,10 +357,13 @@ export class ServiceClient {
     const url = `${this.serviceUrls.get(targetService)}${path}`;
     
     try {
+      // Generate token with body signature for write operations
+      const includeBodySignature = data && ['POST', 'PUT', 'PATCH'].includes(method);
       const { token, signature } = this.authenticator.generateServiceToken(
         this.serviceName,
         targetService,
-        { method, path }
+        { method, path },
+        includeBodySignature ? data : null
       );
 
       const headers = {
@@ -215,7 +380,7 @@ export class ServiceClient {
         timeout: options.timeout || 30000
       };
 
-      if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+      if (data && ['POST', 'PUT', 'PATCH'].includes(method)) {
         requestOptions.body = JSON.stringify(data);
       }
 
@@ -230,7 +395,8 @@ export class ServiceClient {
       const response = await fetch(url, requestOptions);
       
       if (!response.ok) {
-        throw new Error(`Service request failed: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Service request failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const responseData = await response.json();
@@ -280,4 +446,21 @@ export class ServiceClient {
   async delete(targetService, path, options = {}) {
     return this.request(targetService, 'DELETE', path, null, options);
   }
+
+  /**
+   * Health check for a service
+   */
+  async healthCheck(targetService) {
+    try {
+      const response = await this.get(targetService, '/health', { timeout: 5000 });
+      return { healthy: true, ...response };
+    } catch (error) {
+      return { healthy: false, error: error.message };
+    }
+  }
 }
+
+export default {
+  ServiceAuthenticator,
+  ServiceClient
+};
