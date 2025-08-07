@@ -16,6 +16,7 @@ const ProviderPoolManager = require('./provider-pool-manager');
 const SemanticCache = require('./semantic-cache');
 const AdaptiveCostOptimizer = require('./adaptive-cost-optimizer');
 const StreamOptimizer = require('./stream-optimizer');
+const ProviderQualityTracker = require('./provider-quality-tracker');
 const agentProviderMapping = require('../config/agent-provider-mapping');
 
 class AIScalingSystem {
@@ -77,6 +78,10 @@ class AIScalingSystem {
       this.components.streamOptimizer = new StreamOptimizer(this.config.streaming);
       console.log('✅ Stream Optimizer initialized');
     }
+
+    // Initialize quality tracker
+    this.components.qualityTracker = new ProviderQualityTracker(this.config.quality);
+    console.log('✅ Quality Tracker initialized');
 
     this.attachEventHandlers();
     console.log('🎯 AI Scaling System ready!');
@@ -165,7 +170,17 @@ class AIScalingSystem {
         this.metrics.totalCost = costData.budget.dailySpent;
       }
 
-      // 6. Cache response
+      // 6. Track quality for future optimization
+      if (this.components.qualityTracker && response.success) {
+        await this.components.qualityTracker.trackResponseQuality(
+          request,
+          response,
+          provider,
+          request.agent
+        );
+      }
+
+      // 7. Cache response
       if (this.components.cache && response.success) {
         await this.components.cache.set(request.prompt, response.content, {
           context: request.context,
@@ -198,6 +213,21 @@ class AIScalingSystem {
    * Select optimal provider for request
    */
   selectProvider(request) {
+    // First, check quality tracker for best provider based on answer quality
+    if (this.components.qualityTracker) {
+      const promptType = this.components.qualityTracker.classifyPrompt(request.prompt);
+      const qualityRecommendation = this.components.qualityTracker.getProviderRecommendation(
+        request.agent,
+        promptType
+      );
+      
+      // Use quality recommendation if confidence is high
+      if (qualityRecommendation.confidence >= 0.8) {
+        console.log(`Using ${qualityRecommendation.provider} for ${request.agent} based on quality (${qualityRecommendation.confidence})`);
+        return qualityRecommendation.provider;
+      }
+    }
+
     // Get recommendation from config
     const configProvider = agentProviderMapping.getProviderForAgent(
       request.agent,
@@ -487,4 +517,5 @@ module.exports.ProviderPoolManager = ProviderPoolManager;
 module.exports.SemanticCache = SemanticCache;
 module.exports.AdaptiveCostOptimizer = AdaptiveCostOptimizer;
 module.exports.StreamOptimizer = StreamOptimizer;
+module.exports.ProviderQualityTracker = ProviderQualityTracker;
 module.exports.AIScalingSystem = AIScalingSystem;
