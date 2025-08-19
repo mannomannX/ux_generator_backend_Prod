@@ -18,7 +18,8 @@
       "Bash(jest:*)",
       "Bash(npx jest:*)",
       "Bash(cat:*)",
-      "Bash(true)"
+      "Bash(true)",
+      "Bash(npm run dev:standalone:*)"
     ],
     "deny": []
   }

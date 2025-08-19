@@ -1,0 +1,215 @@
+/* Professional Canvas Styles */
+
+/* Smooth animations */
+@keyframes animate-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes zoom-in {
+  from { transform: scale(0.9); }
+  to { transform: scale(1); }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-in {
+  animation: animate-in 0.2s ease-out;
+}
+
+.fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.zoom-in {
+  animation: zoom-in 0.2s ease-out;
+}
+
+.slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Custom ReactFlow overrides */
+.react-flow__renderer {
+  background: transparent !important;
+}
+
+.react-flow__node {
+  cursor: pointer;
+}
+
+.react-flow__node.selected {
+  outline: none !important;
+}
+
+.react-flow__edge-path {
+  stroke-width: 2;
+  transition: stroke 0.2s ease;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3;
+  stroke: #0969DA !important;
+}
+
+.react-flow__handle {
+  width: 12px;
+  height: 12px;
+  background: white;
+  border: 2px solid #0969DA;
+  transition: all 0.2s ease;
+  opacity: 0;
+}
+
+.react-flow__node:hover .react-flow__handle {
+  opacity: 1;
+}
+
+.react-flow__handle:hover {
+  width: 16px;
+  height: 16px;
+  background: #0969DA;
+}
+
+/* Minimap styling */
+.react-flow__minimap {
+  background: white !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+.react-flow__minimap-mask {
+  fill: rgb(59 130 246 / 0.1) !important;
+  stroke: #3b82f6 !important;
+  stroke-width: 2px !important;
+}
+
+/* Controls styling */
+.react-flow__controls {
+  background: white !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: white !important;
+  border: none !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  width: 36px !important;
+  height: 36px !important;
+  transition: all 0.2s ease;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #f3f4f6 !important;
+}
+
+.react-flow__controls-button svg {
+  fill: #6b7280 !important;
+}
+
+/* Dark mode adjustments */
+.dark .react-flow__minimap {
+  background: #1f2937 !important;
+  border-color: #374151 !important;
+}
+
+.dark .react-flow__controls {
+  background: #1f2937 !important;
+  border-color: #374151 !important;
+}
+
+.dark .react-flow__controls-button {
+  background: #1f2937 !important;
+  border-color: #374151 !important;
+}
+
+.dark .react-flow__controls-button:hover {
+  background: #374151 !important;
+}
+
+.dark .react-flow__controls-button svg {
+  fill: #9ca3af !important;
+}
+
+/* Backdrop blur for modals */
+.backdrop-blur {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark .glass {
+  background: rgba(31, 41, 55, 0.7);
+  border: 1px solid rgba(55, 65, 81, 0.3);
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

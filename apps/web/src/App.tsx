@@ -8,6 +8,13 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { EditorPage } from '@/pages/EditorPage';
+import { EnhancedEditorPage } from '@/pages/EnhancedEditorPage';
+import { ProfessionalEditorPage } from '@/pages/ProfessionalEditorPage';
+import { ModernFlowEditor } from '@/pages/ModernFlowEditor';
+import { UXFlowEditor } from '@/pages/UXFlowEditor';
+import { ProfessionalCanvas } from '@/pages/ProfessionalCanvas';
+import { WorkingFlowEditor } from '@/pages/WorkingFlowEditor';
+import { CompleteFlowEditor } from '@/pages/CompleteFlowEditor';
 import { WorkspacePage } from '@/pages/WorkspacePage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { BillingPage } from '@/pages/BillingPage';
@@ -37,7 +44,9 @@ function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/workspace/:workspaceId" element={<WorkspacePage />} />
-          <Route path="/editor/:flowId" element={<EditorPage />} />
+          <Route path="/editor/:flowId" element={<CompleteFlowEditor />} />
+          <Route path="/editor-new" element={<CompleteFlowEditor />} />
+          <Route path="/editor-old" element={<EnhancedEditorPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/billing" element={<BillingPage />} />
         </Route>

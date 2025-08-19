@@ -1,0 +1,202 @@
+/* Custom styles for the professional editor */
+
+/* ReactFlow overrides for modern look */
+.react-flow__node {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.react-flow__node:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.react-flow__node.selected {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 1px #3b82f6, 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.react-flow__edge-path {
+  stroke: #94a3b8;
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #3b82f6;
+  stroke-width: 3;
+}
+
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: #94a3b8;
+  border: 2px solid #fff;
+  transition: all 0.2s ease;
+}
+
+.react-flow__handle:hover {
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+}
+
+.react-flow__controls {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: white;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.react-flow__controls-button:hover {
+  background: #f3f4f6;
+}
+
+.react-flow__controls-button svg {
+  fill: #6b7280;
+  width: 16px;
+  height: 16px;
+}
+
+/* Minimap styling */
+.react-flow__minimap {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Command palette styling */
+.command-palette {
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Node inline editing */
+.node-inline-edit {
+  background: transparent;
+  border: 1px solid #3b82f6;
+  outline: none;
+  font-weight: 600;
+  padding: 2px 4px;
+  border-radius: 4px;
+  min-width: 80px;
+  text-align: center;
+}
+
+/* Context menu */
+.context-menu {
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Sidebar transitions */
+.sidebar-enter {
+  transform: translateX(-100%);
+}
+
+.sidebar-enter-active {
+  transform: translateX(0);
+  transition: transform 0.3s ease;
+}
+
+.sidebar-exit {
+  transform: translateX(0);
+}
+
+.sidebar-exit-active {
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+/* Grid background pattern */
+.grid-pattern {
+  background-image: 
+    linear-gradient(rgba(156, 163, 175, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(156, 163, 175, 0.1) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Selection box */
+.selection-box {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Alignment guides */
+.alignment-guide {
+  position: absolute;
+  background: #3b82f6;
+  z-index: 1000;
+}
+
+.alignment-guide.horizontal {
+  height: 1px;
+  width: 100%;
+}
+
+.alignment-guide.vertical {
+  width: 1px;
+  height: 100%;
+}
