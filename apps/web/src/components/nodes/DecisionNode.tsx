@@ -2,7 +2,7 @@ import { memo, FC } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { UXFlowNode } from '@/types/uxflow';
 
-export const DecisionNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected }) => {
+export const DecisionNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected, id }) => {
   return (
     <div 
       className={`
@@ -18,13 +18,6 @@ export const DecisionNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected })
         borderStyle: 'solid'
       }}
     >
-      <Handle 
-        type="target" 
-        position={Position.Top} 
-        className="!bg-gray-400 !w-2 !h-2"
-        style={{ left: '50%', top: '-25%' }}
-      />
-      
       <div className="absolute inset-0 flex items-center justify-center transform -rotate-45">
         <div className="text-center p-2">
           <div className="font-semibold text-xs truncate">{data.title}</div>
@@ -34,19 +27,20 @@ export const DecisionNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected })
         </div>
       </div>
 
-      <Handle
-        type="source"
+      {/* Minimal handles for React Flow connection system */}
+      <Handle 
+        type="source" 
         position={Position.Right}
-        id="yes"
-        className="!bg-green-500 !w-2 !h-2"
-        style={{ right: '-25%', top: '50%' }}
+        className="!w-1 !h-1 !bg-transparent !border-0"
+        style={{ opacity: 0 }}
+        isConnectable={true}
       />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="no"
-        className="!bg-red-500 !w-2 !h-2"
-        style={{ bottom: '-25%', left: '50%' }}
+      <Handle 
+        type="target" 
+        position={Position.Left}
+        className="!w-1 !h-1 !bg-transparent !border-0"
+        style={{ opacity: 0 }}
+        isConnectable={true}
       />
     </div>
   );

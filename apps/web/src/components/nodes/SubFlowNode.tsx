@@ -20,10 +20,20 @@ export const SubFlowNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected }) 
         borderRadius: data.style?.borderRadius || 8
       }}
     >
+      {/* Handles on all sides */}
       <Handle 
         type="target" 
-        position={Position.Top} 
+        position={Position.Top}
+        id="target-top"
         className="!bg-gray-400 !w-3 !h-3"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Left}
+        id="target-left"
+        className="!bg-gray-400 !w-3 !h-3"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
       
       <div className="flex items-center gap-2">
@@ -47,8 +57,17 @@ export const SubFlowNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected }) 
 
       <Handle 
         type="source" 
-        position={Position.Bottom} 
+        position={Position.Bottom}
+        id="source-bottom"
         className="!bg-blue-500 !w-3 !h-3"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      <Handle 
+        type="source" 
+        position={Position.Right}
+        id="source-right"
+        className="!bg-blue-500 !w-3 !h-3"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
     </div>
   );

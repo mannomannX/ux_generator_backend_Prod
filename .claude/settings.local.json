@@ -19,7 +19,11 @@
       "Bash(npx jest:*)",
       "Bash(cat:*)",
       "Bash(true)",
-      "Bash(npm run dev:standalone:*)"
+      "Bash(npm run dev:standalone:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep:*)",
+      "WebSearch"
     ],
     "deny": []
   }

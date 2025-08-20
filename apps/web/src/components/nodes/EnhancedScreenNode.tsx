@@ -3,7 +3,7 @@ import { Handle, Position, NodeProps } from 'reactflow';
 import { Monitor, Smartphone, Tablet, Image, CheckCircle, Clock, AlertCircle, Zap } from 'lucide-react';
 import { UXFlowNode } from '@/types/uxflow';
 
-export const EnhancedScreenNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected }) => {
+export const EnhancedScreenNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected, id }) => {
   const [showVariants, setShowVariants] = useState(false);
   
   const getResponsiveIcon = () => {
@@ -49,10 +49,20 @@ export const EnhancedScreenNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selec
       }}
       onDoubleClick={() => setShowVariants(!showVariants)}
     >
+      {/* Target Handles - All sides */}
       <Handle 
         type="target" 
-        position={Position.Top} 
+        position={Position.Top}
+        id="target-top"
         className="!bg-gray-400 !w-3 !h-3"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Left}
+        id="target-left"
+        className="!bg-gray-400 !w-3 !h-3"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
       
       <div className="absolute top-1 left-1 flex items-center gap-1">
@@ -112,15 +122,20 @@ export const EnhancedScreenNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selec
         </div>
       )}
 
+      {/* Minimal handles for React Flow connection system */}
       <Handle 
         type="source" 
-        position={Position.Bottom} 
-        className="!bg-blue-500 !w-3 !h-3"
+        position={Position.Right}
+        className="!w-1 !h-1 !bg-transparent !border-0"
+        style={{ opacity: 0 }}
+        isConnectable={true}
       />
       <Handle 
-        type="source" 
-        position={Position.Right} 
-        className="!bg-blue-500 !w-3 !h-3"
+        type="target" 
+        position={Position.Left}
+        className="!w-1 !h-1 !bg-transparent !border-0"
+        style={{ opacity: 0 }}
+        isConnectable={true}
       />
     </div>
   );

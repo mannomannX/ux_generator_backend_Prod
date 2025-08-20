@@ -13,6 +13,7 @@ export interface UXFlowStyle {
   borderColor?: string;
   borderWidth?: number;
   borderRadius?: number;
+  borderStyle?: string;
   fontSize?: string;
   fontColor?: string;
   fontWeight?: string;
@@ -43,6 +44,7 @@ export type NodeType =
   | 'start'
   | 'end'
   | 'screen'
+  | 'enhanced-screen'
   | 'decision'
   | 'condition'
   | 'action'
@@ -62,6 +64,8 @@ export interface UXFlowNode {
   uiMetadata?: UIMetadata;
   parentFrameId?: string;
   isGhost?: boolean;
+  priority?: 'critical' | 'important' | 'info' | 'normal';
+  locked?: boolean;
   data?: {
     conditions?: Array<{
       id: string;
@@ -71,6 +75,10 @@ export interface UXFlowNode {
     subflowId?: string;
     frameTitle?: string;
     containedNodes?: string[];
+    components?: string[];
+    interactions?: string[];
+    dataBindings?: string[];
+    steps?: string[];
   };
 }
 

@@ -29,11 +29,20 @@ export const ConditionNode: FC<NodeProps<ConditionNodeData>> = memo(({ data, sel
         borderStyle: 'solid'
       }}
     >
+      {/* Target handles on all sides */}
       <Handle 
         type="target" 
         position={Position.Top} 
-        className="!bg-gray-400 !w-2 !h-2"
-        style={{ left: '50%', top: '-25%' }}
+        id="target-top"
+        className="!bg-gray-400 !w-3 !h-3 !border-2 !border-white"
+        style={{ left: '50%', top: '-15%', transform: 'translate(-50%, 0)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Left}
+        id="target-left"
+        className="!bg-gray-400 !w-3 !h-3 !border-2 !border-white"
+        style={{ left: '-15%', top: '50%', transform: 'translate(0, -50%)' }}
       />
       
       <div className="absolute inset-0 flex items-center justify-center transform -rotate-45">
@@ -73,19 +82,20 @@ export const ConditionNode: FC<NodeProps<ConditionNodeData>> = memo(({ data, sel
 
       {conditions.length === 0 && (
         <>
+          {/* Source handles on all sides */}
           <Handle
             type="source"
             position={Position.Right}
-            id="true"
-            className="!bg-green-500 !w-2 !h-2"
-            style={{ right: '-25%', top: '30%' }}
+            id="source-right"
+            className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white"
+            style={{ right: '-15%', top: '50%', transform: 'translate(0, -50%)' }}
           />
           <Handle
             type="source"
             position={Position.Bottom}
-            id="false"
-            className="!bg-red-500 !w-2 !h-2"
-            style={{ bottom: '-25%', left: '50%' }}
+            id="source-bottom"
+            className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white"
+            style={{ bottom: '-15%', left: '50%', transform: 'translate(-50%, 0)' }}
           />
         </>
       )}
