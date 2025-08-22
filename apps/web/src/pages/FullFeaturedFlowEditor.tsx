@@ -15,6 +15,8 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   MarkerType,
+  applyEdgeChanges,
+  EdgeChange,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { 
@@ -63,9 +65,11 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { completeExampleFlow } from '@/mocks/completeFlowExample';
-import { autoLayout, smartLayout, treeLayout, compactLayout } from '@/utils/autoLayout';
-import { frameAwareLayout } from '@/utils/frameAwareLayout';
-import { updateEdgeWithSmartRouting, optimizeEdgeRouting } from '@/utils/smartEdgeRouting';
+import { autoLayout, smartLayout, compactLayout } from '@/utils/autoLayoutOptimized';
+import { treeLayoutFixed } from '@/utils/treeLayoutFixed';
+import { testAllLayouts } from '@/utils/testLayouts';
+import { analyzeHandleUsage, getBestHandle } from '@/utils/handleManager';
+// Removed smart edge routing imports that were causing edges to disappear
 import { EnhancedScreenNode } from '@/components/nodes/EnhancedScreenNode';
 import { ScreenNode } from '@/components/nodes/ScreenNode';
 import { DecisionNode } from '@/components/nodes/DecisionNode';
@@ -76,7 +80,10 @@ import { SubFlowNode } from '@/components/nodes/SubFlowNode';
 import { StartNode } from '@/components/nodes/StartNode';
 import { EndNode } from '@/components/nodes/EndNode';
 import { FrameNode } from '@/components/nodes/FrameNode';
-import { CustomEdge } from '@/components/edges/CustomEdge';
+import { EnhancedCustomEdge } from '@/components/edges/EnhancedCustomEdge';
+import { ConnectionLine } from '@/components/edges/ConnectionLine';
+import { AlignmentGuides } from '@/components/canvas/AlignmentGuides';
+import { useAlignmentGuides } from '@/hooks/useAlignmentGuides';
 
 const nodeTypes = {
   screen: ScreenNode,
@@ -92,7 +99,7 @@ const nodeTypes = {
 };
 
 const edgeTypes = {
-  custom: CustomEdge,
+  custom: EnhancedCustomEdge,
 };
 
 const defaultEdgeOptions = {
@@ -165,9 +172,9 @@ const sortNodesWithFramesInBackground = (nodes: Node[]) => {
 
 function FlowCanvas() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { project, fitView, zoomIn, zoomOut, zoomTo, getViewport } = useReactFlow();
-  const [nodes, setNodesBase, onNodesChangeBase] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const { project, fitView, zoomIn, zoomOut, zoomTo, getViewport, getZoom } = useReactFlow();
+  const [nodes, setNodesBase, onNodesChange] = useNodesState([]);
+  const [edges, setEdges] = useEdgesState([]);
   
   // Wrap setNodes to always sort with frames in background
   const setNodes = useCallback((nodesOrUpdater: Node[] | ((nodes: Node[]) => Node[])) => {
@@ -179,23 +186,8 @@ function FlowCanvas() {
     } else {
       setNodesBase(sortNodesWithFramesInBackground(nodesOrUpdater));
     }
-  }, [setNodesBase, sortNodesWithFramesInBackground]);
+  }, [setNodesBase]);
   
-  // Wrap onNodesChange to maintain sorting and optimize edges
-  const onNodesChange = useCallback((changes: any) => {
-    onNodesChangeBase(changes);
-    // After changes, ensure frames stay in background
-    setNodesBase(currentNodes => {
-      const sortedNodes = sortNodesWithFramesInBackground(currentNodes);
-      
-      // Optimize edge routing when nodes move
-      if (changes.some((change: any) => change.type === 'position')) {
-        setEdges(currentEdges => optimizeEdgeRouting(currentEdges, sortedNodes));
-      }
-      
-      return sortedNodes;
-    });
-  }, [onNodesChangeBase, setNodesBase, setEdges]);
   const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [detailsPanelOpen, setDetailsPanelOpen] = useState(false);
@@ -209,6 +201,16 @@ function FlowCanvas() {
   const [copiedNode, setCopiedNode] = useState<Node | null>(null);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
+  
+  // Store the connection start to track drag direction
+  const connectionStartRef = useRef<{ nodeId: string | null; handleId: string | null; handleType: string | null }>({ 
+    nodeId: null, 
+    handleId: null, 
+    handleType: null 
+  });
+  
+  // Alignment guides hook
+  const { guides, onNodeDragStart, onNodeDrag, onNodeDragStop, findAlignments } = useAlignmentGuides();
 
   // Delete edge
   const handleDeleteEdge = useCallback((edgeId: string) => {
@@ -232,10 +234,63 @@ function FlowCanvas() {
         : edge
     ));
   }, [setEdges]);
+  
+  // Handle edge color change (also handles bidirectional toggle and line style)
+  const handleEdgeColorChange = useCallback((edgeId: string, colorOrMode: string) => {
+    setEdges((edges: Edge[]) => edges.map((edge): Edge => {
+      if (edge.id === edgeId) {
+        if (colorOrMode === 'bidirectional' || colorOrMode === 'unidirectional') {
+          // Toggle bidirectional mode
+          return {
+            ...edge,
+            data: {
+              ...edge.data,
+              bidirectional: colorOrMode === 'bidirectional'
+            }
+          } as Edge;
+        } else if (colorOrMode === 'solid' || colorOrMode === 'dashed') {
+          // Toggle line style (solid/dashed)
+          return {
+            ...edge,
+            data: {
+              ...edge.data,
+              animated: colorOrMode === 'dashed'  // Use animated property for dashed style
+            }
+          } as Edge;
+        } else {
+          // Change color
+          return {
+            ...edge,
+            style: {
+              ...edge.style,
+              stroke: colorOrMode
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              width: 20,
+              height: 20,
+              color: colorOrMode,
+            },
+            data: {
+              ...edge.data,
+              color: colorOrMode
+            }
+          } as Edge;
+        }
+      }
+      return edge;
+    }));
+  }, [setEdges]);
 
 
   // Initialize with complete example flow
   useEffect(() => {
+    // Run layout tests in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Running layout tests...');
+      testAllLayouts();
+    }
+    
     const flowNodes: Node[] = completeExampleFlow.nodes.map(node => ({
       id: node.id,
       type: node.type,
@@ -256,7 +311,11 @@ function FlowCanvas() {
         ...defaultEdgeOptions.markerEnd,
         color: edge.style.stroke,
       } : defaultEdgeOptions.markerEnd,
-      data: {}
+      data: {
+        color: edge.style?.stroke || '#94a3b8',
+        bidirectional: false,
+        edgeType: 'smoothstep'
+      }
     }));
 
     // Sort nodes so frame nodes are rendered first (in the background)
@@ -267,48 +326,156 @@ function FlowCanvas() {
     setTimeout(() => fitView({ padding: 0.2 }), 100);
   }, [setNodes, setEdges, fitView]);
   
-  // Update edge data with callbacks after initialization
+  // Update edge data with callbacks only when activeEdgeId changes
   useEffect(() => {
     setEdges(edges => edges.map(edge => ({
       ...edge,
       data: {
         ...edge.data,
-        onDelete: () => handleDeleteEdge(edge.id),
-        onLabelChange: (label: string) => handleEdgeLabelChange(edge.id, label),
-        onEdgeTypeChange: (type: string) => handleEdgeTypeChange(edge.id, type),
+        onDelete: edge.data?.onDelete || (() => handleDeleteEdge(edge.id)),
+        onLabelChange: edge.data?.onLabelChange || ((label: string) => handleEdgeLabelChange(edge.id, label)),
+        onEdgeTypeChange: edge.data?.onEdgeTypeChange || ((type: string) => handleEdgeTypeChange(edge.id, type)),
+        onColorChange: edge.data?.onColorChange || ((color: string) => handleEdgeColorChange(edge.id, color)),
         activeEdgeId,
-        setActiveEdgeId
+        setActiveEdgeId,
+        edgeType: edge.data?.edgeType || 'smoothstep',
+        label: edge.data?.label || edge.label
       }
     })));
-  }, [handleDeleteEdge, handleEdgeLabelChange, handleEdgeTypeChange, setEdges, activeEdgeId, setActiveEdgeId]);
+  }, [activeEdgeId, handleDeleteEdge, handleEdgeLabelChange, handleEdgeTypeChange, handleEdgeColorChange, setActiveEdgeId]); // Update when handlers or activeEdgeId change
+
+  const onConnectionStart = useCallback(
+    (event: any, { nodeId, handleId, handleType }: any) => {
+      console.log('Connection started from:', { nodeId, handleId, handleType });
+      connectionStartRef.current = { nodeId, handleId, handleType };
+    },
+    []
+  );
+
+  const onConnectionEnd = useCallback(() => {
+    // Reset the connection start when connection ends
+    connectionStartRef.current = { nodeId: null, handleId: null, handleType: null };
+  }, []);
 
   const onConnect = useCallback(
     (params: Connection) => {
+      // Prevent self-loops
+      if (params.source === params.target) {
+        console.warn('Cannot create edge from node to itself');
+        return;
+      }
+      
+      // DEBUG: Check what React Flow gives us and what we tracked
+      console.log('onConnect params:', {
+        source: params.source,
+        sourceHandle: params.sourceHandle,
+        target: params.target,
+        targetHandle: params.targetHandle
+      });
+      console.log('Connection started from:', connectionStartRef.current);
+      
       const edgeId = `edge-${Date.now()}`;
       
-      // Create the new edge with smart routing
+      // EXPERIMENT: Da wir bidirektionale Handles haben, könnte React Flow
+      // die Richtung anders interpretieren als erwartet.
+      // Lass uns einfach IMMER source und target vertauschen
+      let actualSource = params.target;  // Vertausche immer
+      let actualTarget = params.source;  // Vertausche immer
+      let actualSourceHandle = params.targetHandle;
+      let actualTargetHandle = params.sourceHandle;
+      
+      console.log('ALWAYS swapping source/target:', {
+        original: { source: params.source, target: params.target },
+        swapped: { source: actualSource, target: actualTarget }
+      });
+      
+      // Use the corrected handles
+      const sourceHandle = actualSourceHandle;
+      const targetHandle = actualTargetHandle;
+      
+      // Create the new edge - ensure arrow points in drag direction
       const newEdge = {
         ...params,
         ...defaultEdgeOptions,
         type: 'custom',
         id: edgeId,
+        source: actualSource,  // Where we started dragging FROM (corrected)
+        target: actualTarget,  // Where we dragged TO (corrected)
+        sourceHandle,
+        targetHandle,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: '#94a3b8'
+        },
         data: {
           onDelete: () => handleDeleteEdge(edgeId),
           onLabelChange: (label: string) => handleEdgeLabelChange(edgeId, label),
           onEdgeTypeChange: (type: string) => handleEdgeTypeChange(edgeId, type),
+          onColorChange: (color: string) => handleEdgeColorChange(edgeId, color),
           activeEdgeId,
           setActiveEdgeId,
-          edgeType: 'smoothstep'
+          edgeType: 'smoothstep',
+          sourceHandle,
+          targetHandle
         }
       };
       
-      // Apply smart routing to determine best handle positions
-      const optimizedEdge = updateEdgeWithSmartRouting(newEdge as Edge, nodes);
+      console.log('Creating edge with:', {
+        source: newEdge.source,
+        target: newEdge.target,
+        markerEnd: 'at target'
+      });
       
-      setEdges((eds) => addEdge(optimizedEdge, eds));
+      // Direct add without smart routing (which was causing edges to disappear)
+      setEdges((eds) => addEdge(newEdge, eds));
+      
+      // Reset connection start
+      connectionStartRef.current = { nodeId: null, handleId: null, handleType: null };
     },
-    [setEdges, handleDeleteEdge, handleEdgeLabelChange, handleEdgeTypeChange, activeEdgeId, setActiveEdgeId, nodes]
+    [nodes, edges, setEdges, handleDeleteEdge, handleEdgeLabelChange, handleEdgeTypeChange, handleEdgeColorChange, activeEdgeId, setActiveEdgeId]
   );
+  
+  // Custom edge change handler that preserves edge data
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    setEdges((currentEdges) => {
+      // Apply changes
+      let newEdges = applyEdgeChanges(changes, currentEdges);
+      
+      // Ensure all edges have their handlers
+      newEdges = newEdges.map(edge => {
+        // If edge already has complete data, just update activeEdgeId
+        if (edge.data?.onDelete) {
+          return {
+            ...edge,
+            data: {
+              ...edge.data,
+              activeEdgeId,
+              setActiveEdgeId
+            }
+          };
+        }
+        
+        // Otherwise, add all handlers
+        return {
+          ...edge,
+          type: 'custom',
+          data: {
+            ...edge.data,
+            onDelete: () => handleDeleteEdge(edge.id),
+            onLabelChange: (label: string) => handleEdgeLabelChange(edge.id, label),
+            onEdgeTypeChange: (type: string) => handleEdgeTypeChange(edge.id, type),
+            onColorChange: (color: string) => handleEdgeColorChange(edge.id, color),
+            activeEdgeId,
+            setActiveEdgeId,
+            edgeType: edge.data?.edgeType || 'smoothstep',
+            label: edge.data?.label || edge.label || ''
+          }
+        };
+      });
+      
+      return newEdges;
+    });
+  }, [handleDeleteEdge, handleEdgeLabelChange, handleEdgeTypeChange, handleEdgeColorChange, activeEdgeId, setActiveEdgeId, setEdges]);
 
   // Enhanced node selection
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
@@ -340,7 +507,7 @@ function FlowCanvas() {
         return [...prev, node];
       });
     } else {
-      // Single select - clear all other selections
+      // Single select - clear all other selections including edges
       setNodes(nds =>
         nds.map(n => ({
           ...n,
@@ -348,10 +515,13 @@ function FlowCanvas() {
         }))
       );
       
+      // Deselect all edges when selecting a node
+      setEdges(eds => eds.map(e => ({ ...e, selected: false })));
+      
       setSelectedNodes([node]);
       setDetailsPanelOpen(true);
     }
-  }, [setNodes]);
+  }, [setNodes, setEdges]);
 
   // Update selected nodes when nodes change
   useEffect(() => {
@@ -500,39 +670,80 @@ function FlowCanvas() {
     );
   }, []);
 
-  // Layout functions
-  const applyAutoLayout = useCallback((type: 'smart' | 'tree' | 'compact' | 'horizontal' | 'vertical' | 'frame-aware' = 'smart') => {
-    let layoutedNodes: Node[] = [];
-    let optimizedEdges: Edge[] = edges;
+  // Layout functions - all are now frame-aware
+  const applyAutoLayout = useCallback((type: 'smart' | 'tree' | 'compact' | 'horizontal' | 'vertical' = 'smart') => {
+    let layoutResult: { nodes: Node[]; edges: Edge[] };
     
     switch(type) {
       case 'smart':
-        layoutedNodes = smartLayout(nodes, edges);
+        layoutResult = smartLayout(nodes, edges);
         break;
       case 'tree':
-        layoutedNodes = treeLayout(nodes, edges);
+        layoutResult = treeLayoutFixed(nodes, edges);
         break;
       case 'compact':
-        layoutedNodes = compactLayout(nodes, edges);
+        layoutResult = compactLayout(nodes, edges);
         break;
       case 'horizontal':
-        layoutedNodes = autoLayout(nodes, edges, { direction: 'LR' });
+        layoutResult = autoLayout(nodes, edges, { direction: 'LR' });
         break;
       case 'vertical':
-        layoutedNodes = autoLayout(nodes, edges, { direction: 'TB' });
-        break;
-      case 'frame-aware':
-        layoutedNodes = frameAwareLayout(nodes, edges, { direction: 'LR' });
+        layoutResult = autoLayout(nodes, edges, { direction: 'TB' });
         break;
       default:
-        layoutedNodes = frameAwareLayout(nodes, edges, { direction: 'LR' });
+        layoutResult = smartLayout(nodes, edges);
     }
     
-    // Optimize edge routing to minimize overlaps
-    optimizedEdges = optimizeEdgeRouting(edges, layoutedNodes);
+    // Apply optimized layout with smart handle assignments and maintain frame sorting
+    setNodes(sortNodesWithFramesInBackground(layoutResult.nodes));
     
-    setNodes(layoutedNodes);
-    setEdges(optimizedEdges);
+    // Update edges with optimized handles and preserve ALL existing edges
+    setEdges(currentEdges => {
+      console.log(`📊 Updating edges after ${type} layout`);
+      console.log(`  Current edges: ${currentEdges.length}`);
+      console.log(`  Layout edges: ${layoutResult.edges.length}`);
+      
+      // Update only the handle positions from layout, keep all edge data
+      const updatedEdges = currentEdges.map(existingEdge => {
+        const layoutEdge = layoutResult.edges.find(e => e.id === existingEdge.id);
+        
+        // Check if source and target nodes still exist
+        const sourceExists = layoutResult.nodes.find(n => n.id === existingEdge.source);
+        const targetExists = layoutResult.nodes.find(n => n.id === existingEdge.target);
+        
+        if (!sourceExists || !targetExists) {
+          console.warn(`⚠️ Edge ${existingEdge.id} references missing nodes:`, {
+            source: existingEdge.source,
+            sourceExists: !!sourceExists,
+            target: existingEdge.target,
+            targetExists: !!targetExists
+          });
+        }
+        
+        if (layoutEdge) {
+          console.log(`  Edge ${existingEdge.id}: ${existingEdge.source} -> ${existingEdge.target}`);
+          console.log(`    Handles: ${layoutEdge.sourceHandle || 'default'} -> ${layoutEdge.targetHandle || 'default'}`);
+          
+          return {
+            ...existingEdge,
+            sourceHandle: layoutEdge.sourceHandle,
+            targetHandle: layoutEdge.targetHandle,
+            data: {
+              ...existingEdge.data,
+              sourceHandle: layoutEdge.sourceHandle,
+              targetHandle: layoutEdge.targetHandle
+            }
+          };
+        }
+        // Keep edges that weren't in layout result unchanged
+        console.log(`  Edge ${existingEdge.id} not in layout result, keeping unchanged`);
+        return existingEdge;
+      });
+      
+      console.log(`  Final edges: ${updatedEdges.length}`);
+      return updatedEdges;
+    });
+    
     setTimeout(() => fitView({ padding: 0.1, duration: 800 }), 50);
     setShowLayoutMenu(false);
   }, [nodes, edges, setNodes, setEdges, fitView]);
@@ -636,11 +847,7 @@ function FlowCanvas() {
         setNodes(nds => nds.map(n => ({ ...n, selected: true })));
         setSelectedNodes(nodes);
       }
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedNodes.length > 0 || nodes.some(n => n.selected)) {
-          deleteSelectedNodes();
-        }
-      }
+      // Delete is now handled by ReactFlow's onNodesDelete and onEdgesDelete
       if ((e.metaKey || e.ctrlKey) && e.key === '=') {
         e.preventDefault();
         zoomIn();
@@ -657,7 +864,7 @@ function FlowCanvas() {
         setShowAddNodeMenu(true);
       }
       if (e.key === 'l' && !e.metaKey && !e.ctrlKey) {
-        applyAutoLayout('frame-aware');
+        applyAutoLayout('smart');
       }
       if (e.key === 'Escape') {
         setSelectedNodes([]);
@@ -670,7 +877,7 @@ function FlowCanvas() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodes, nodes, editingNode, copyNode, pasteNode, duplicateNode, deleteSelectedNodes, applyAutoLayout, setNodes, zoomIn, zoomOut, zoomTo]);
+  }, [selectedNodes, nodes, edges, editingNode, copyNode, pasteNode, duplicateNode, deleteSelectedNodes, applyAutoLayout, setNodes, setEdges, zoomIn, zoomOut, zoomTo]);
 
   const nodeColor = (node: Node) => {
     switch (node.type) {
@@ -733,12 +940,12 @@ function FlowCanvas() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    applyAutoLayout('frame-aware');
+                    applyAutoLayout('smart');
                   }}
                   className="w-full px-4 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2"
                 >
                   <Shuffle className="w-3 h-3" />
-                  Smart Layout (Frame-aware)
+                  Smart Layout
                 </button>
                 <button
                   onClick={(e) => {
@@ -890,8 +1097,21 @@ function FlowCanvas() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onConnectionStart={onConnectionStart}
+            onConnectionEnd={onConnectionEnd}
             onNodeClick={onNodeClick}
             onNodeContextMenu={onNodeContextMenu}
+            onNodeDragStart={onNodeDragStart}
+            onNodeDrag={onNodeDrag}
+            onNodeDragStop={(event, node) => {
+              const snappedPosition = onNodeDragStop(event, node);
+              // Update node position to snapped position
+              setNodes(nds => nds.map(n => 
+                n.id === node.id 
+                  ? { ...n, position: snappedPosition }
+                  : n
+              ));
+            }}
             onDrop={onDrop}
             onDragOver={onDragOver}
             nodeTypes={nodeTypes}
@@ -899,27 +1119,9 @@ function FlowCanvas() {
             connectionMode={ConnectionMode.Loose}
             edgeTypes={edgeTypes}
             defaultEdgeOptions={defaultEdgeOptions}
-            onEdgeUpdate={(oldEdge, newConnection) => {
-              setEdges((els) => {
-                const updatedEdges = els.filter((el) => el.id !== oldEdge.id);
-                const edgeId = `edge-${Date.now()}`;
-                return addEdge({
-                  ...defaultEdgeOptions,
-                  ...newConnection,
-                  type: 'custom',
-                  id: edgeId,
-                  label: oldEdge.label, // Preserve label
-                  data: {
-                    onDelete: () => handleDeleteEdge(edgeId),
-                    onLabelChange: (label: string) => handleEdgeLabelChange(edgeId, label),
-                    activeEdgeId,
-                    setActiveEdgeId
-                  }
-                }, updatedEdges);
-              });
-            }}
-            onEdgeUpdateStart={() => {}}
-            onEdgeUpdateEnd={() => {}}
+            connectionLineComponent={ConnectionLine}
+            connectionLineStyle={{ strokeDasharray: '5 5', stroke: '#94a3b8' }}
+            edgesUpdatable={false}
             onEdgeClick={(event, edge) => {
               event.stopPropagation();
               
@@ -938,6 +1140,7 @@ function FlowCanvas() {
                 setNodes(nds =>
                   nds.map(n => ({ ...n, selected: false }))
                 );
+                setSelectedNodes([]); // Clear selected nodes array
                 setEdges(eds =>
                   eds.map(e => ({
                     ...e,
@@ -948,7 +1151,20 @@ function FlowCanvas() {
             }}
             fitView
             attributionPosition="bottom-left"
-            deleteKeyCode={null} // We handle delete ourselves
+            deleteKeyCode="Delete"
+            onNodesDelete={(nodesToDelete) => {
+              // Custom delete handler for nodes
+              const nodeIds = nodesToDelete.map(n => n.id);
+              setNodes(nds => nds.filter(n => !nodeIds.includes(n.id)));
+              setEdges(eds => eds.filter(e => !nodeIds.includes(e.source) && !nodeIds.includes(e.target)));
+              setSelectedNodes([]);
+              setDetailsPanelOpen(false);
+            }}
+            onEdgesDelete={(edgesToDelete) => {
+              // Custom delete handler for edges
+              const edgeIds = edgesToDelete.map(e => e.id);
+              setEdges(eds => eds.filter(e => !edgeIds.includes(e.id)));
+            }}
             multiSelectionKeyCode={['Meta', 'Control']}
           >
             <Background 
@@ -957,6 +1173,7 @@ function FlowCanvas() {
               size={1}
               color="#e5e7eb"
             />
+            <AlignmentGuides guides={guides} />
             <Controls 
               className="bg-white border-2 border-gray-200 rounded-lg shadow-lg"
               showInteractive={false}

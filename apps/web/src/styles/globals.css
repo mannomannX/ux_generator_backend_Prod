@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* React Flow Z-Index fixes for frames and edges */
+/* Frame nodes ALWAYS in background */
+.react-flow__node-frame {
+  z-index: 1 !important;
+}
+
+/* Regular nodes above frames */
+.react-flow__node:not(.react-flow__node-frame) {
+  z-index: 4 !important;
+}
+
+/* Edges above nodes */
+.react-flow__edges {
+  z-index: 5 !important;
+}
+
+/* Edge labels above everything */
+.react-flow__edge-labelrenderer {
+  z-index: 1000 !important;
+  pointer-events: none;
+}
+
+.react-flow__edge-labelrenderer > * {
+  pointer-events: all;
+}
+
 :root {
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
@@ -58,4 +84,15 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Remove animation from dotted edges */
+@keyframes dash {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.react-flow__edge-path {
+  animation: none !important;
 }

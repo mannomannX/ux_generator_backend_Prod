@@ -20,19 +20,33 @@ export const SubFlowNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected }) 
         borderRadius: data.style?.borderRadius || 8
       }}
     >
-      {/* Handles on all sides */}
+      {/* Handles on all sides with standardized IDs */}
       <Handle 
         type="target" 
         position={Position.Top}
-        id="target-top"
-        className="!bg-gray-400 !w-3 !h-3"
+        id="top"
+        className="!bg-gray-400 !w-3 !h-3 hover:!bg-blue-500"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      <Handle 
+        type="source" 
+        position={Position.Top}
+        id="top"
+        className="!bg-gray-400 !w-3 !h-3 hover:!bg-green-500"
         style={{ left: '50%', transform: 'translateX(-50%)' }}
       />
       <Handle 
         type="target" 
         position={Position.Left}
-        id="target-left"
-        className="!bg-gray-400 !w-3 !h-3"
+        id="left"
+        className="!bg-gray-400 !w-3 !h-3 hover:!bg-blue-500"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+      <Handle 
+        type="source" 
+        position={Position.Left}
+        id="left"
+        className="!bg-gray-400 !w-3 !h-3 hover:!bg-green-500"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
       
@@ -58,15 +72,29 @@ export const SubFlowNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected }) 
       <Handle 
         type="source" 
         position={Position.Bottom}
-        id="source-bottom"
-        className="!bg-blue-500 !w-3 !h-3"
+        id="bottom"
+        className="!bg-blue-500 !w-3 !h-3 hover:!bg-green-500"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Bottom}
+        id="bottom"
+        className="!bg-gray-400 !w-3 !h-3 hover:!bg-blue-500"
         style={{ left: '50%', transform: 'translateX(-50%)' }}
       />
       <Handle 
         type="source" 
         position={Position.Right}
-        id="source-right"
-        className="!bg-blue-500 !w-3 !h-3"
+        id="right"
+        className="!bg-blue-500 !w-3 !h-3 hover:!bg-green-500"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Right}
+        id="right"
+        className="!bg-gray-400 !w-3 !h-3 hover:!bg-blue-500"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
     </div>

@@ -81,33 +81,64 @@ export const NoteNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected, id })
         </div>
       </div>
 
-      {/* Handles for all sides */}
-      <Handle
-        type="target"
+      {/* Universal Connection Handles - All 4 sides (genau wie EnhancedScreenNode) */}
+      <Handle 
+        type="source" 
         position={Position.Top}
-        id="target-top"
-        className="!bg-gray-400 !w-2 !h-2 opacity-0 hover:opacity-100"
+        id="top"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
         style={{ left: '50%', transform: 'translateX(-50%)' }}
       />
-      <Handle
-        type="target"
+      <Handle 
+        type="target" 
+        position={Position.Top}
+        id="top"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      
+      <Handle 
+        type="source" 
+        position={Position.Bottom}
+        id="bottom"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Bottom}
+        id="bottom"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      
+      <Handle 
+        type="source" 
         position={Position.Left}
-        id="target-left"
-        className="!bg-gray-400 !w-2 !h-2 opacity-0 hover:opacity-100"
+        id="left"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="source-bottom"
-        className="!bg-blue-500 !w-2 !h-2 opacity-0 hover:opacity-100"
-        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      <Handle 
+        type="target" 
+        position={Position.Left}
+        id="left"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
-      <Handle
-        type="source"
+      
+      <Handle 
+        type="source" 
         position={Position.Right}
-        id="source-right"
-        className="!bg-blue-500 !w-2 !h-2 opacity-0 hover:opacity-100"
+        id="right"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Right}
+        id="right"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
     </div>

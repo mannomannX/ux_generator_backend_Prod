@@ -1,5 +1,6 @@
 import dagre from 'dagre';
 import { Node, Edge } from 'reactflow';
+import { debugTreeLayout, analyzeNodeConnectivity } from './debugLayout';
 
 export type LayoutDirection = 'TB' | 'LR' | 'BT' | 'RL';
 
@@ -17,11 +18,121 @@ const defaultOptions: Required<LayoutOptions> = {
   animate: true,
 };
 
+// Helper to determine optimal handle positions based on layout direction and node positions
+const getOptimalHandlePositions = (
+  sourceNode: Node,
+  targetNode: Node,
+  direction: LayoutDirection
+): { sourceHandle?: string; targetHandle?: string } => {
+  const dx = targetNode.position.x - sourceNode.position.x;
+  const dy = targetNode.position.y - sourceNode.position.y;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  
+  // For horizontal layouts (LR/RL)
+  if (direction === 'LR' || direction === 'RL') {
+    // Check if nodes are roughly aligned horizontally
+    if (absDy < 50) {
+      // Nodes are horizontally aligned, use side handles
+      return {
+        sourceHandle: dx > 0 ? 'right' : 'left',
+        targetHandle: dx > 0 ? 'left' : 'right'
+      };
+    }
+    
+    // Check diagonal connections
+    if (absDx > absDy * 1.5) {
+      // Primarily horizontal connection
+      return {
+        sourceHandle: dx > 0 ? 'right' : 'left',
+        targetHandle: dx > 0 ? 'left' : 'right'
+      };
+    } else if (absDy > absDx * 0.7) {
+      // More vertical than horizontal - use top/bottom handles
+      return {
+        sourceHandle: dy > 0 ? 'bottom' : 'top',
+        targetHandle: dy > 0 ? 'top' : 'bottom'
+      };
+    } else {
+      // Mixed diagonal - choose based on quadrant
+      if (dx > 0 && dy > 0) {
+        // Target is bottom-right
+        return { sourceHandle: 'right', targetHandle: 'top' };
+      } else if (dx > 0 && dy < 0) {
+        // Target is top-right
+        return { sourceHandle: 'right', targetHandle: 'bottom' };
+      } else if (dx < 0 && dy > 0) {
+        // Target is bottom-left
+        return { sourceHandle: 'left', targetHandle: 'top' };
+      } else {
+        // Target is top-left
+        return { sourceHandle: 'left', targetHandle: 'bottom' };
+      }
+    }
+  }
+  
+  // For vertical layouts (TB/BT)
+  if (direction === 'TB' || direction === 'BT') {
+    // Check if nodes are roughly aligned vertically
+    if (absDx < 50) {
+      // Nodes are vertically aligned, use top/bottom handles
+      return {
+        sourceHandle: dy > 0 ? 'bottom' : 'top',
+        targetHandle: dy > 0 ? 'top' : 'bottom'
+      };
+    }
+    
+    // Check diagonal connections
+    if (absDy > absDx * 1.5) {
+      // Primarily vertical connection
+      return {
+        sourceHandle: dy > 0 ? 'bottom' : 'top',
+        targetHandle: dy > 0 ? 'top' : 'bottom'
+      };
+    } else if (absDx > absDy * 0.7) {
+      // More horizontal than vertical - use side handles
+      return {
+        sourceHandle: dx > 0 ? 'right' : 'left',
+        targetHandle: dx > 0 ? 'left' : 'right'
+      };
+    } else {
+      // Mixed diagonal - choose based on quadrant
+      if (dx > 0 && dy > 0) {
+        // Target is bottom-right
+        return { sourceHandle: 'bottom', targetHandle: 'left' };
+      } else if (dx > 0 && dy < 0) {
+        // Target is top-right
+        return { sourceHandle: 'top', targetHandle: 'left' };
+      } else if (dx < 0 && dy > 0) {
+        // Target is bottom-left
+        return { sourceHandle: 'bottom', targetHandle: 'right' };
+      } else {
+        // Target is top-left
+        return { sourceHandle: 'top', targetHandle: 'right' };
+      }
+    }
+  }
+  
+  // Default based on direction
+  switch (direction) {
+    case 'LR':
+      return { sourceHandle: 'right', targetHandle: 'left' };
+    case 'RL':
+      return { sourceHandle: 'left', targetHandle: 'right' };
+    case 'TB':
+      return { sourceHandle: 'bottom', targetHandle: 'top' };
+    case 'BT':
+      return { sourceHandle: 'top', targetHandle: 'bottom' };
+    default:
+      return { sourceHandle: 'right', targetHandle: 'left' };
+  }
+};
+
 export const autoLayout = (
   nodes: Node[],
   edges: Edge[],
   options: LayoutOptions = {}
-): Node[] => {
+): { nodes: Node[]; edges: Edge[] } => {
   const { direction, nodeSpacing, rankSpacing } = { ...defaultOptions, ...options };
   
   // Separate frame nodes and regular nodes
@@ -112,18 +223,37 @@ export const autoLayout = (
       // Adjust frame size and position nodes
       const padding = 40;
       frame.position = { x: minX - padding, y: minY - padding };
-      frame.data = {
-        ...frame.data,
-        size: {
-          width: maxX - minX + padding * 2,
-          height: maxY - minY + padding * 2
+      const updatedFrame = {
+        ...frame,
+        data: {
+          ...frame.data,
+          size: {
+            width: maxX - minX + padding * 2,
+            height: maxY - minY + padding * 2
+          },
+          // Preserve containedNodes data
+          data: {
+            ...frame.data?.data,
+            containedNodes: containedNodeIds
+          }
         }
       };
       
-      layoutedNodes.push(frame);
+      layoutedNodes.push(updatedFrame);
       layoutedNodes.push(...tempNodes);
     } else {
-      layoutedNodes.push(frame);
+      // Even if frame has no nodes, preserve its data structure
+      const frameWithData = {
+        ...frame,
+        data: {
+          ...frame.data,
+          data: {
+            ...frame.data?.data,
+            containedNodes: containedNodeIds || []
+          }
+        }
+      };
+      layoutedNodes.push(frameWithData);
     }
   });
   
@@ -177,7 +307,42 @@ export const autoLayout = (
     });
   }
   
-  return layoutedNodes;
+  // Update edges with optimal handle positions - but keep original handles if specified
+  const optimizedEdges = edges.map(edge => {
+    const sourceNode = layoutedNodes.find(n => n.id === edge.source);
+    const targetNode = layoutedNodes.find(n => n.id === edge.target);
+    
+    if (sourceNode && targetNode) {
+      // Keep specific handles like 'cond-1', 'cond-2' if they exist
+      if (edge.sourceHandle && edge.sourceHandle.startsWith('cond-')) {
+        return edge; // Keep edge unchanged
+      }
+      
+      const handles = getOptimalHandlePositions(sourceNode, targetNode, direction);
+      return {
+        ...edge,
+        sourceHandle: edge.sourceHandle || handles.sourceHandle,
+        targetHandle: edge.targetHandle || handles.targetHandle,
+        data: {
+          ...edge.data,
+          sourceHandle: edge.sourceHandle || handles.sourceHandle,
+          targetHandle: edge.targetHandle || handles.targetHandle
+        }
+      };
+    }
+    
+    // IMPORTANT: Always return the edge even if nodes aren't found
+    return edge;
+  });
+  
+  // Sort nodes to ensure frames are first (rendered in background)
+  const sortedNodes = [...layoutedNodes].sort((a, b) => {
+    if (a.type === 'frame' && b.type !== 'frame') return -1;
+    if (a.type !== 'frame' && b.type === 'frame') return 1;
+    return 0;
+  });
+  
+  return { nodes: sortedNodes, edges: optimizedEdges };
 };
 
 // Smart layout that groups related nodes and respects frames
@@ -185,20 +350,7 @@ export const smartLayout = (
   nodes: Node[],
   edges: Edge[],
   options: LayoutOptions = {}
-): Node[] => {
-  // First apply frame-aware layout
-  const frameAwareNodes = autoLayout(nodes, edges, options);
-  
-  // Then apply smart grouping within the frame-aware structure
-  return smartLayoutInternal(frameAwareNodes, edges, options);
-};
-
-// Internal smart layout logic
-const smartLayoutInternal = (
-  nodes: Node[],
-  edges: Edge[],
-  options: LayoutOptions = {}
-): Node[] => {
+): { nodes: Node[]; edges: Edge[] } => {
   // Group nodes by type for better organization
   const nodeGroups: { [key: string]: Node[] } = {};
   
@@ -270,7 +422,11 @@ export const treeLayout = (
   nodes: Node[],
   edges: Edge[],
   rootNodeId?: string
-): Node[] => {
+): { nodes: Node[]; edges: Edge[] } => {
+  // Debug output
+  console.log('🌳 Tree Layout Started');
+  debugTreeLayout(nodes, edges);
+  const connectivity = analyzeNodeConnectivity(nodes, edges);
   // Separate frame nodes and regular nodes
   const frameNodes = nodes.filter(n => n.type === 'frame');
   const regularNodes = nodes.filter(n => n.type !== 'frame');
@@ -310,9 +466,27 @@ export const treeLayout = (
     const containedNodes = nodesInFrames[frame.id] || [];
     
     if (containedNodes.length > 0) {
-      // Find root within frame
-      const frameRootNode = containedNodes.find(n => n.type === 'start') || 
-        containedNodes.find(n => !edges.some(e => e.target === n.id && containedNodes.some(cn => cn.id === e.source)));
+      // Debug: Log what's in this frame
+      console.log(`📦 Processing frame ${frame.id} with ${containedNodes.length} nodes`);
+      
+      // For tree layout, we need to consider ALL edges, not just internal ones
+      // Find nodes that are entry points to the frame (have external incoming edges)
+      const entryNodes = containedNodes.filter(n => {
+        const externalIncoming = edges.some(e => 
+          e.target === n.id && !containedNodes.some(cn => cn.id === e.source)
+        );
+        return externalIncoming || n.type === 'start';
+      });
+      
+      // If no entry nodes, find nodes with no incoming edges at all
+      const rootCandidates = entryNodes.length > 0 ? entryNodes : 
+        containedNodes.filter(n => !edges.some(e => e.target === n.id));
+      
+      const frameRootNode = rootCandidates[0] || containedNodes[0];
+      
+      console.log(`  Entry nodes: ${entryNodes.map(n => n.id).join(', ')}`);
+      console.log(`  Root node: ${frameRootNode?.id} (${frameRootNode?.data?.title})`);
+      
       
       if (frameRootNode) {
         // Build tree for frame contents
@@ -321,7 +495,13 @@ export const treeLayout = (
         const levels: { [key: string]: number } = {};
         
         const buildTree = (nodeId: string, level: number = 0) => {
-          if (visited.has(nodeId)) return;
+          if (visited.has(nodeId)) {
+            // Node already visited - update level if this path is longer
+            if (level > levels[nodeId]) {
+              levels[nodeId] = level;
+            }
+            return;
+          }
           visited.add(nodeId);
           levels[nodeId] = level;
           
@@ -336,6 +516,34 @@ export const treeLayout = (
         };
         
         buildTree(frameRootNode.id);
+        
+        // Process ALL nodes in frame, ensuring they all get positioned
+        containedNodes.forEach(node => {
+          if (!visited.has(node.id)) {
+            // This node wasn't reached by tree traversal
+            // Check if it has any incoming edges at all
+            const incomingEdges = edges.filter(e => e.target === node.id);
+            
+            if (incomingEdges.length > 0) {
+              // Has incoming edges - calculate level based on all parents
+              const parentLevels = incomingEdges.map(e => {
+                const sourceInFrame = containedNodes.some(n => n.id === e.source);
+                if (sourceInFrame) {
+                  // Parent is in frame, use its level
+                  return levels[e.source] || 0;
+                } else {
+                  // Parent is outside frame - this node should be at level 0
+                  return -1;
+                }
+              });
+              levels[node.id] = Math.max(...parentLevels) + 1;
+            } else {
+              // No incoming edges at all - place at level 0
+              levels[node.id] = 0;
+            }
+            visited.add(node.id);
+          }
+        });
         
         // Calculate positions
         const levelNodes: { [key: number]: string[] } = {};
@@ -369,16 +577,24 @@ export const treeLayout = (
         
         // Adjust frame
         const padding = 40;
-        frame.position = { x: minX - padding, y: minY - padding };
-        frame.data = {
-          ...frame.data,
-          size: {
-            width: maxX - minX + padding * 2,
-            height: maxY - minY + padding * 2
+        const updatedFrame = {
+          ...frame,
+          position: { x: minX - padding, y: minY - padding },
+          data: {
+            ...frame.data,
+            size: {
+              width: maxX - minX + padding * 2,
+              height: maxY - minY + padding * 2
+            },
+            // Preserve containedNodes data
+            data: {
+              ...frame.data?.data,
+              containedNodes: containedNodeIds
+            }
           }
         };
         
-        layoutedNodes.push(frame);
+        layoutedNodes.push(updatedFrame);
         layoutedNodes.push(...tempNodes);
       } else {
         // If no root, use compact layout for frame contents
@@ -404,7 +620,18 @@ export const treeLayout = (
         
         dagre.layout(dagreGraph);
         
-        layoutedNodes.push(frame);
+        // Preserve frame data
+        const frameWithData = {
+          ...frame,
+          data: {
+            ...frame.data,
+            data: {
+              ...frame.data?.data,
+              containedNodes: containedNodeIds
+            }
+          }
+        };
+        layoutedNodes.push(frameWithData);
         containedNodes.forEach(node => {
           const nodePos = dagreGraph.node(node.id);
           const width = node.data?.size?.width || 180;
@@ -419,7 +646,18 @@ export const treeLayout = (
         });
       }
     } else {
-      layoutedNodes.push(frame);
+      // Even if frame has no nodes, preserve its data structure
+      const frameWithData = {
+        ...frame,
+        data: {
+          ...frame.data,
+          data: {
+            ...frame.data?.data,
+            containedNodes: containedNodeIds || []
+          }
+        }
+      };
+      layoutedNodes.push(frameWithData);
     }
   });
   
@@ -436,7 +674,13 @@ export const treeLayout = (
       const levels: { [key: string]: number } = {};
       
       const buildTree = (nodeId: string, level: number = 0) => {
-        if (visited.has(nodeId)) return;
+        if (visited.has(nodeId)) {
+          // Node already visited - update level if this path is longer
+          if (level > levels[nodeId]) {
+            levels[nodeId] = level;
+          }
+          return;
+        }
         visited.add(nodeId);
         levels[nodeId] = level;
         
@@ -451,6 +695,19 @@ export const treeLayout = (
       };
       
       buildTree(freeRootNode.id);
+      
+      // Also process nodes that have incoming edges but weren't reached by tree traversal
+      freeNodes.forEach(node => {
+        if (!visited.has(node.id)) {
+          // Find the maximum level of all parents
+          const parentEdges = edges.filter(e => e.target === node.id && freeNodes.some(n => n.id === e.source));
+          if (parentEdges.length > 0) {
+            const maxParentLevel = Math.max(...parentEdges.map(e => levels[e.source] || 0));
+            levels[node.id] = maxParentLevel + 1;
+            visited.add(node.id);
+          }
+        }
+      });
       
       const levelNodes: { [key: number]: string[] } = {};
       Object.entries(levels).forEach(([nodeId, level]) => {
@@ -483,14 +740,49 @@ export const treeLayout = (
     }
   }
   
-  return layoutedNodes;
+  // Update edges with optimal handles for tree layout
+  const optimizedEdges = edges.map(edge => {
+    const sourceNode = layoutedNodes.find(n => n.id === edge.source);
+    const targetNode = layoutedNodes.find(n => n.id === edge.target);
+    
+    if (sourceNode && targetNode) {
+      // Keep specific handles like 'cond-1', 'cond-2' if they exist
+      if (edge.sourceHandle && edge.sourceHandle.startsWith('cond-')) {
+        return edge; // Keep edge unchanged
+      }
+      
+      const handles = getOptimalHandlePositions(sourceNode, targetNode, 'TB');
+      return {
+        ...edge,
+        sourceHandle: handles.sourceHandle,
+        targetHandle: handles.targetHandle,
+        data: {
+          ...edge.data,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle
+        }
+      };
+    }
+    
+    // IMPORTANT: Always return the edge even if nodes aren't found
+    return edge;
+  });
+  
+  // Sort nodes to ensure frames are first (rendered in background)
+  const sortedNodes = [...layoutedNodes].sort((a, b) => {
+    if (a.type === 'frame' && b.type !== 'frame') return -1;
+    if (a.type !== 'frame' && b.type === 'frame') return 1;
+    return 0;
+  });
+  
+  return { nodes: sortedNodes, edges: optimizedEdges };
 };
 
 // Compact layout that minimizes space and respects frames
 export const compactLayout = (
   nodes: Node[],
   edges: Edge[]
-): Node[] => {
+): { nodes: Node[]; edges: Edge[] } => {
   // Use frame-aware autoLayout with compact spacing
   return autoLayout(nodes, edges, {
     direction: 'TB',

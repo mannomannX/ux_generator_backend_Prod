@@ -325,8 +325,7 @@ export const FrameNode: FC<FrameNodeProps> = memo(({
           backgroundColor: data.style?.backgroundColor || 'rgba(147, 197, 253, 0.05)',
           borderColor: data.style?.borderColor || '#3B82F6',
           borderRadius: data.style?.borderRadius || 8,
-          pointerEvents: 'none',
-          zIndex: -10
+          pointerEvents: 'none'
         }}
       >
         {/* Border areas for hover detection */}

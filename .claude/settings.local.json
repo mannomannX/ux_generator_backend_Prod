@@ -23,7 +23,8 @@
       "Bash(npm run dev:*)",
       "Bash(npx tsc:*)",
       "Bash(grep:*)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": []
   }

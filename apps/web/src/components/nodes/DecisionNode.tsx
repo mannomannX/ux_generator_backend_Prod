@@ -27,20 +27,69 @@ export const DecisionNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selected, i
         </div>
       </div>
 
-      {/* Minimal handles for React Flow connection system */}
+      {/* Universal Connection Handles - At diamond CORNERS */}
+      {/* Top corner */}
+      <Handle 
+        type="source" 
+        position={Position.Top}
+        id="top"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors !z-10"
+        style={{ left: '0%', top: '50%', transform: 'translate(-50%, -50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Top}
+        id="top"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors !z-10"
+        style={{ left: '0%', top: '50%', transform: 'translate(-50%, -50%)' }}
+      />
+      
+      {/* Right corner */}
       <Handle 
         type="source" 
         position={Position.Right}
-        className="!w-1 !h-1 !bg-transparent !border-0"
-        style={{ opacity: 0 }}
-        isConnectable={true}
+        id="right"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors !z-10"
+        style={{ left: '50%', top: '0%', transform: 'translate(-50%, -50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Right}
+        id="right"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors !z-10"
+        style={{ left: '50%', top: '0%', transform: 'translate(-50%, -50%)' }}
+      />
+      
+      {/* Bottom corner */}
+      <Handle 
+        type="source" 
+        position={Position.Bottom}
+        id="bottom"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors !z-10"
+        style={{ left: '100%', top: '50%', transform: 'translate(-50%, -50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Bottom}
+        id="bottom"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors !z-10"
+        style={{ left: '100%', top: '50%', transform: 'translate(-50%, -50%)' }}
+      />
+      
+      {/* Left corner */}
+      <Handle 
+        type="source" 
+        position={Position.Left}
+        id="left"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors !z-10"
+        style={{ left: '50%', top: '100%', transform: 'translate(-50%, -50%)' }}
       />
       <Handle 
         type="target" 
         position={Position.Left}
-        className="!w-1 !h-1 !bg-transparent !border-0"
-        style={{ opacity: 0 }}
-        isConnectable={true}
+        id="left"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors !z-10"
+        style={{ left: '50%', top: '100%', transform: 'translate(-50%, -50%)' }}
       />
     </div>
   );

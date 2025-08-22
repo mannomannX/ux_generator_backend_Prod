@@ -49,19 +49,64 @@ export const EnhancedScreenNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selec
       }}
       onDoubleClick={() => setShowVariants(!showVariants)}
     >
-      {/* Target Handles - All sides */}
+      {/* Universal Connection Handles - All 4 sides */}
       <Handle 
-        type="target" 
+        type="source" 
         position={Position.Top}
-        id="target-top"
-        className="!bg-gray-400 !w-3 !h-3"
+        id="top"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
         style={{ left: '50%', transform: 'translateX(-50%)' }}
       />
       <Handle 
         type="target" 
+        position={Position.Top}
+        id="top"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      
+      <Handle 
+        type="source" 
+        position={Position.Bottom}
+        id="bottom"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Bottom}
+        id="bottom"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ left: '50%', transform: 'translateX(-50%)' }}
+      />
+      
+      <Handle 
+        type="source" 
         position={Position.Left}
-        id="target-left"
-        className="!bg-gray-400 !w-3 !h-3"
+        id="left"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Left}
+        id="left"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+      
+      <Handle 
+        type="source" 
+        position={Position.Right}
+        id="right"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+      <Handle 
+        type="target" 
+        position={Position.Right}
+        id="right"
+        className="!bg-gray-500 !w-3 !h-3 hover:!bg-blue-500 !border-2 !border-white !transition-colors"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
       
@@ -122,21 +167,6 @@ export const EnhancedScreenNode: FC<NodeProps<UXFlowNode>> = memo(({ data, selec
         </div>
       )}
 
-      {/* Minimal handles for React Flow connection system */}
-      <Handle 
-        type="source" 
-        position={Position.Right}
-        className="!w-1 !h-1 !bg-transparent !border-0"
-        style={{ opacity: 0 }}
-        isConnectable={true}
-      />
-      <Handle 
-        type="target" 
-        position={Position.Left}
-        className="!w-1 !h-1 !bg-transparent !border-0"
-        style={{ opacity: 0 }}
-        isConnectable={true}
-      />
     </div>
   );
 });

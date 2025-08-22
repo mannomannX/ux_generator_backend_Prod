@@ -1,6 +1,6 @@
 import { FC, useState, useEffect, useRef } from 'react';
-import { EdgeProps, EdgeLabelRenderer, BaseEdge, getSmoothStepPath, getBezierPath, getStraightPath } from 'reactflow';
-import { X, Edit3, Tag, Circle, Trash2, Palette, Type, Sliders } from 'lucide-react';
+import { EdgeProps, EdgeLabelRenderer, BaseEdge, getSmoothStepPath, getBezierPath, getStraightPath, useReactFlow } from 'reactflow';
+import { X, Tag, Minus, Home, Share2, Spline } from 'lucide-react';
 
 interface CustomEdgeData {
   label?: string;
@@ -12,7 +12,7 @@ interface CustomEdgeData {
   edgeType?: 'smoothstep' | 'straight' | 'step' | 'bezier';
 }
 
-export const CustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
+export const ImprovedCustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
   id,
   sourceX,
   sourceY,
@@ -30,8 +30,11 @@ export const CustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
   const [editLabel, setEditLabel] = useState(String(label || data?.label || ''));
   const [controlPoints, setControlPoints] = useState<{ x: number; y: number }[]>([]);
   const [isDragging, setIsDragging] = useState<number | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const showMenu = data?.activeEdgeId === id;
   const edgeType = data?.edgeType || 'smoothstep';
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { getZoom, getViewport } = useReactFlow();
   
   // Calculate control points for step edges
   useEffect(() => {
@@ -141,6 +144,22 @@ export const CustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
       break;
   }
   
+  // Calculate screen position for menu
+  useEffect(() => {
+    if (showMenu && !isEditing) {
+      const zoom = getZoom();
+      const viewport = getViewport();
+      
+      // Convert canvas coordinates to screen coordinates
+      const screenX = labelX * zoom + viewport.x;
+      const screenY = labelY * zoom + viewport.y;
+      
+      setMenuPosition({ x: screenX, y: screenY });
+    } else {
+      setMenuPosition(null);
+    }
+  }, [showMenu, isEditing, labelX, labelY, getZoom, getViewport]);
+  
   // Close menu when clicking elsewhere
   useEffect(() => {
     if (!showMenu) {
@@ -178,6 +197,14 @@ export const CustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
     event.stopPropagation();
     setIsEditing(true);
     setEditLabel(String(label || ''));
+  };
+  
+  // Edge style icons
+  const edgeStyleIcons = {
+    smoothstep: <Share2 className="w-4 h-4" />,
+    step: <Home className="w-4 h-4 rotate-90" />,
+    straight: <Minus className="w-4 h-4" />,
+    bezier: <Spline className="w-4 h-4" />
   };
   
   // Ensure edge always renders even if data is missing
@@ -244,7 +271,7 @@ export const CustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
             }}
             className="nodrag nopan"
           >
-            <div className="bg-white px-2 py-1 rounded shadow-lg border border-gray-200 flex items-center gap-1">
+            <div className="bg-white px-2 py-1 rounded-lg shadow-lg border border-gray-200">
               <input
                 type="text"
                 value={String(editLabel)}
@@ -263,13 +290,6 @@ export const CustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
                 autoFocus
                 placeholder="Edge label..."
               />
-              <button
-                onClick={handleLabelSave}
-                className="p-0.5 hover:bg-gray-100 rounded"
-                title="Save"
-              >
-                <Edit3 className="w-3 h-3 text-gray-600" />
-              </button>
             </div>
           </div>
         ) : label ? (
@@ -281,7 +301,7 @@ export const CustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
               pointerEvents: 'all',
               zIndex: 10
             }}
-            className="nodrag nopan bg-white px-2 py-1 rounded shadow-sm border border-gray-200 cursor-pointer"
+            className="nodrag nopan bg-white px-2 py-1 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:shadow-md transition-shadow"
             onClick={handleEdgeClick}
             onDoubleClick={handleLabelDoubleClick}
           >
@@ -289,83 +309,63 @@ export const CustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
           </div>
         ) : null}
         
-        {/* Context Menu */}
-        {showMenu && !isEditing && (
+        {/* Compact Icon-based Context Menu (Screen-relative positioning) */}
+        {showMenu && !isEditing && menuPosition && (
           <div
+            ref={menuRef}
             style={{
-              position: 'absolute',
-              transform: `translate(-50%, -100%) translate(${labelX}px,${labelY - 20}px)`,
+              position: 'fixed',
+              left: menuPosition.x,
+              top: menuPosition.y - 40,
+              transform: 'translate(-50%, -100%)',
               pointerEvents: 'all',
-              zIndex: 1000
+              zIndex: 10000
             }}
             className="nodrag nopan"
           >
-            <div className="bg-white rounded-lg shadow-xl border border-gray-300 p-1">
+            <div className="bg-white rounded-lg shadow-xl border border-gray-300 p-1 flex items-center gap-1">
+              {/* Label Edit Button */}
               <button
                 onClick={() => {
                   setIsEditing(true);
                   setEditLabel(String(label || ''));
                 }}
-                className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 rounded text-sm w-full text-left"
+                className="p-2 hover:bg-gray-100 rounded-md transition-colors"
+                title="Edit Label"
               >
-                <Tag className="w-4 h-4 text-gray-600" />
-                <span>Edit Label</span>
+                <Tag className="w-4 h-4 text-gray-700" />
               </button>
+              
+              {/* Edge Style Buttons */}
               {data?.onEdgeTypeChange && (
-                <div className="px-3 py-1.5">
-                  <div className="text-xs text-gray-500 mb-1">Edge Style:</div>
-                  <div className="grid grid-cols-2 gap-1">
+                <div className="flex items-center gap-1 border-l border-gray-200 pl-1 ml-1">
+                  {Object.entries(edgeStyleIcons).map(([type, icon]) => (
                     <button
-                      onClick={() => data.onEdgeTypeChange?.('smoothstep')}
-                      className={`px-2 py-1 text-xs rounded ${
-                        edgeType === 'smoothstep' ? 'bg-blue-100 text-blue-600' : 'bg-gray-50 hover:bg-gray-100'
+                      key={type}
+                      onClick={() => data.onEdgeTypeChange?.(type)}
+                      className={`p-2 rounded-md transition-colors ${
+                        edgeType === type 
+                          ? 'bg-blue-100 text-blue-600' 
+                          : 'hover:bg-gray-100 text-gray-700'
                       }`}
+                      title={type.charAt(0).toUpperCase() + type.slice(1)}
                     >
-                      Smooth
+                      {icon}
                     </button>
-                    <button
-                      onClick={() => data.onEdgeTypeChange?.('step')}
-                      className={`px-2 py-1 text-xs rounded ${
-                        edgeType === 'step' ? 'bg-blue-100 text-blue-600' : 'bg-gray-50 hover:bg-gray-100'
-                      }`}
-                    >
-                      Elbowed
-                    </button>
-                    <button
-                      onClick={() => data.onEdgeTypeChange?.('straight')}
-                      className={`px-2 py-1 text-xs rounded ${
-                        edgeType === 'straight' ? 'bg-blue-100 text-blue-600' : 'bg-gray-50 hover:bg-gray-100'
-                      }`}
-                    >
-                      Straight
-                    </button>
-                    <button
-                      onClick={() => data.onEdgeTypeChange?.('bezier')}
-                      className={`px-2 py-1 text-xs rounded ${
-                        edgeType === 'bezier' ? 'bg-blue-100 text-blue-600' : 'bg-gray-50 hover:bg-gray-100'
-                      }`}
-                    >
-                      Curved
-                    </button>
-                  </div>
+                  ))}
                 </div>
               )}
+              
+              {/* Delete Button */}
               {data?.onDelete && (
                 <button
                   onClick={handleDelete}
-                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-50 rounded text-sm w-full text-left text-red-600"
+                  className="p-2 hover:bg-red-50 rounded-md transition-colors ml-1 border-l border-gray-200"
+                  title="Delete Edge"
                 >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Delete Edge</span>
+                  <X className="w-4 h-4 text-red-600" />
                 </button>
               )}
-              <button
-                onClick={() => data?.setActiveEdgeId && data.setActiveEdgeId(null)}
-                className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 rounded text-sm w-full text-left"
-              >
-                <X className="w-4 h-4 text-gray-600" />
-                <span>Close</span>
-              </button>
             </div>
           </div>
         )}

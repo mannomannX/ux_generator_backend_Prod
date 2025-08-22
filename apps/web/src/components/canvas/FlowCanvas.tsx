@@ -28,6 +28,7 @@ import { SubFlowNode } from '@/components/nodes/SubFlowNode';
 import { StartNode } from '@/components/nodes/StartNode';
 import { EndNode } from '@/components/nodes/EndNode';
 import { FrameNode } from '@/components/nodes/FrameNode';
+import { CustomEdge } from '@/components/edges/CustomEdge';
 import { UXFlowDocument, UXFlowNode, UXFlowEdge } from '@/types/uxflow';
 
 const nodeTypes = {
@@ -40,6 +41,14 @@ const nodeTypes = {
   start: StartNode,
   end: EndNode,
   frame: FrameNode,
+};
+
+const edgeTypes = {
+  custom: CustomEdge,
+  smoothstep: CustomEdge,
+  straight: CustomEdge,
+  step: CustomEdge,
+  bezier: CustomEdge,
 };
 
 interface FlowCanvasProps {
@@ -75,6 +84,43 @@ export function FlowCanvas({
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
+  const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
+
+  const handleDeleteEdge = useCallback((edgeId: string) => {
+    setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+    setActiveEdgeId(null);
+  }, []);
+
+  const handleEdgeLabelChange = useCallback((edgeId: string, label: string) => {
+    setEdges((eds) => eds.map((e) => {
+      if (e.id === edgeId) {
+        return {
+          ...e,
+          label,
+          data: {
+            ...e.data,
+            label
+          }
+        };
+      }
+      return e;
+    }));
+  }, []);
+
+  const handleEdgeTypeChange = useCallback((edgeId: string, type: string) => {
+    setEdges((eds) => eds.map((e) => {
+      if (e.id === edgeId) {
+        return {
+          ...e,
+          data: {
+            ...e.data,
+            edgeType: type
+          }
+        };
+      }
+      return e;
+    }));
+  }, []);
 
   const convertToReactFlowFormat = useCallback((doc: UXFlowDocument) => {
     const rfNodes: Node[] = doc.nodes.map(node => ({
@@ -113,9 +159,18 @@ export function FlowCanvas({
       sourceHandle: edge.sourceHandle,
       targetHandle: edge.targetHandle,
       label: edge.label,
-      type: edge.type || 'smoothstep',
+      type: 'custom',
       animated: edge.animated,
-      style: edge.style
+      style: edge.style,
+      data: {
+        edgeType: edge.type || 'smoothstep',
+        label: edge.label,
+        onDelete: () => handleDeleteEdge(edge.id),
+        onLabelChange: (label: string) => handleEdgeLabelChange(edge.id, label),
+        onEdgeTypeChange: (type: string) => handleEdgeTypeChange(edge.id, type),
+        activeEdgeId,
+        setActiveEdgeId
+      }
     }));
 
     const ghostRfEdges: Edge[] = ghostEdges.map(edge => ({
@@ -125,12 +180,21 @@ export function FlowCanvas({
       sourceHandle: edge.sourceHandle,
       targetHandle: edge.targetHandle,
       label: edge.label,
-      type: edge.type || 'smoothstep',
+      type: 'custom',
       animated: true,
       style: {
         ...edge.style,
         strokeDasharray: '5 5',
         opacity: 0.5
+      },
+      data: {
+        edgeType: edge.type || 'smoothstep',
+        label: edge.label,
+        onDelete: () => handleDeleteEdge(edge.id),
+        onLabelChange: (label: string) => handleEdgeLabelChange(edge.id, label),
+        onEdgeTypeChange: (type: string) => handleEdgeTypeChange(edge.id, type),
+        activeEdgeId,
+        setActiveEdgeId
       }
     }));
 
@@ -138,7 +202,7 @@ export function FlowCanvas({
       nodes: [...rfNodes, ...ghostRfNodes],
       edges: [...rfEdges, ...ghostRfEdges]
     };
-  }, [ghostNodes, ghostEdges, isPresentMode]);
+  }, [ghostNodes, ghostEdges, isPresentMode, handleDeleteEdge, handleEdgeLabelChange, handleEdgeTypeChange, activeEdgeId]);
 
   const filteredNodesAndEdges = useMemo(() => {
     let filteredNodes = nodes;
@@ -212,8 +276,8 @@ export function FlowCanvas({
             target: e.target,
             sourceHandle: e.sourceHandle,
             targetHandle: e.targetHandle,
-            label: e.label,
-            type: e.type as any,
+            label: e.label || e.data?.label,
+            type: e.data?.edgeType || 'smoothstep',
             style: e.style,
             animated: e.animated
           }));
@@ -227,12 +291,23 @@ export function FlowCanvas({
   const onConnect = useCallback((connection: Connection) => {
     if (isPresentMode) return;
     
+    const newEdgeId = `edge-${connection.source}-${connection.target}-${Date.now()}`;
     setEdges((eds) => addEdge({
       ...connection,
-      type: 'smoothstep',
-      animated: false
+      id: newEdgeId,
+      type: 'custom',
+      animated: false,
+      data: {
+        edgeType: 'smoothstep',
+        label: '',
+        onDelete: () => handleDeleteEdge(newEdgeId),
+        onLabelChange: (label: string) => handleEdgeLabelChange(newEdgeId, label),
+        onEdgeTypeChange: (type: string) => handleEdgeTypeChange(newEdgeId, type),
+        activeEdgeId,
+        setActiveEdgeId
+      }
     }, eds));
-  }, [isPresentMode]);
+  }, [isPresentMode, handleDeleteEdge, handleEdgeLabelChange, handleEdgeTypeChange, activeEdgeId]);
 
   const onSelectionChange = useCallback(({ nodes }: { nodes: Node[] }) => {
     setSelectedNodes(nodes.map(n => n.id));
@@ -294,6 +369,7 @@ export function FlowCanvas({
       onPaneContextMenu={onPaneContextMenu}
       onNodeContextMenu={onNodeContextMenu}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       fitView
       snapToGrid={document.metadata.globalSettings?.snapToGrid}
       snapGrid={[
@@ -301,10 +377,18 @@ export function FlowCanvas({
         document.metadata.globalSettings?.gridSize || 20
       ]}
       defaultEdgeOptions={{
-        type: 'smoothstep',
+        type: 'custom',
         animated: false,
         style: {
           strokeWidth: 2
+        },
+        data: {
+          edgeType: 'smoothstep',
+          onDelete: () => {},
+          onLabelChange: () => {},
+          onEdgeTypeChange: () => {},
+          activeEdgeId,
+          setActiveEdgeId
         }
       }}
       proOptions={{ hideAttribution: true }}

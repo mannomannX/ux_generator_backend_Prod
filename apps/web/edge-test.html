@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edge Test</title>
+</head>
+<body>
+    <h1>Flow Editor Test</h1>
+    <iframe src="http://localhost:5173/full-featured" width="100%" height="800px" style="border: 1px solid #ccc;"></iframe>
+    
+    <script>
+        // Wait for iframe to load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                console.log('Page should be loaded. Check the console for any errors.');
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
