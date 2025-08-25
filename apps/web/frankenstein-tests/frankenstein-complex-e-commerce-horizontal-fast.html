@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Complex E-commerce - Frankenstein Layout</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container { 
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #333; 
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: normal;
+        }
+        .config {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .config-label {
+            color: #666;
+            font-size: 13px;
+        }
+        .config-value {
+            font-weight: 600;
+            color: #333;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #2196f3;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .quality-score {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .score-value {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        .score-label {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        .success { 
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+        .warning {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        .svg-container { 
+            overflow: auto;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin: 20px 0;
+        }
+        .issues {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .issues h3 {
+            color: #f57c00;
+            margin: 0 0 10px 0;
+        }
+        .issues ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            Complex E-commerce
+            <span class="badge">Ultimate Frankenstein Layout</span>
+        </h1>
+        
+        <div class="config">
+            <div class="config-item">
+                <span class="config-label">Mode:</span>
+                <span class="config-value">horizontal</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Routing:</span>
+                <span class="config-value">orthogonal</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Lanes:</span>
+                <span class="config-value">Disabled</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Frame Mode:</span>
+                <span class="config-value">contain</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Label Mode:</span>
+                <span class="config-value">adaptive</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Quality Priority:</span>
+                <span class="config-value">No</span>
+            </div>
+        </div>
+        
+        <div class="quality-score">
+            <div class="score-value">0/100</div>
+            <div class="score-label">Overall Quality Score</div>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric success">
+                <div class="metric-value">✓</div>
+                <div class="metric-label">Deterministic</div>
+            </div>
+            <div class="metric error">
+                <div class="metric-value">1</div>
+                <div class="metric-label">Collisions</div>
+            </div>
+            <div class="metric warning">
+                <div class="metric-value">20%</div>
+                <div class="metric-label">Compactness</div>
+            </div>
+            <div class="metric warning">
+                <div class="metric-value">63</div>
+                <div class="metric-label">Edge Crossings</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Frame Issues</div>
+            </div>
+            <div class="metric error">
+                <div class="metric-value">7</div>
+                <div class="metric-label">Handle Conflicts</div>
+            </div>
+            <div class="metric error">
+                <div class="metric-value">-14, 121</div>
+                <div class="metric-label">Min Coords (X,Y)</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">1715×879</div>
+                <div class="metric-label">Canvas Size</div>
+            </div>
+        </div>
+        
+        <div class="svg-container">
+            <svg width="1714.5" height="879.25" style="border: 1px solid #ddd; background: white;"><line x1="0" y1="0" x2="0" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="50" y1="0" x2="50" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="100" y1="0" x2="100" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="150" y1="0" x2="150" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="200" y1="0" x2="200" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="250" y1="0" x2="250" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="300" y1="0" x2="300" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="350" y1="0" x2="350" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="400" y1="0" x2="400" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="450" y1="0" x2="450" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="500" y1="0" x2="500" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="550" y1="0" x2="550" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="600" y1="0" x2="600" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="650" y1="0" x2="650" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="700" y1="0" x2="700" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="750" y1="0" x2="750" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="800" y1="0" x2="800" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="850" y1="0" x2="850" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="900" y1="0" x2="900" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="950" y1="0" x2="950" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1000" y1="0" x2="1000" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1050" y1="0" x2="1050" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1100" y1="0" x2="1100" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1150" y1="0" x2="1150" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1200" y1="0" x2="1200" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1250" y1="0" x2="1250" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1300" y1="0" x2="1300" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1350" y1="0" x2="1350" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1400" y1="0" x2="1400" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1450" y1="0" x2="1450" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1500" y1="0" x2="1500" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1550" y1="0" x2="1550" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1600" y1="0" x2="1600" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1650" y1="0" x2="1650" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1700" y1="0" x2="1700" y2="879.25" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="0" x2="1714.5" y2="0" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="50" x2="1714.5" y2="50" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="100" x2="1714.5" y2="100" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="150" x2="1714.5" y2="150" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="200" x2="1714.5" y2="200" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="250" x2="1714.5" y2="250" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="300" x2="1714.5" y2="300" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="350" x2="1714.5" y2="350" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="400" x2="1714.5" y2="400" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="450" x2="1714.5" y2="450" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="500" x2="1714.5" y2="500" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="550" x2="1714.5" y2="550" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="600" x2="1714.5" y2="600" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="650" x2="1714.5" y2="650" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="700" x2="1714.5" y2="700" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="750" x2="1714.5" y2="750" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="800" x2="1714.5" y2="800" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="850" x2="1714.5" y2="850" stroke="#f5f5f5" stroke-width="0.5" /><path d="M 75.5 200.75 L 75.5 237.75 L 225.5 237.75 L 225.5 274.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="225.5,274.75 217.51704962621554,275.27201851470477 221.05644351812765,268.09757143650455" fill="#666" /><path d="M 675.5 354.75 L 675.5 392.25 L 924.5 392.25 L 924.5 429.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="924.5,429.75 916.7125643461989,431.58189681420816 919.0198129948833,423.9218313005756" fill="#666" /><rect x="765" y="382.25" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="800" y="396.25" text-anchor="middle" font-size="11" fill="#333">No</text><path d="M 1023.5 200.75 L 1023.5 237.75 L 1074.5 237.75 L 1074.5 274.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1074.5,274.75 1067.2748640793927,271.3152640671005 1073.8620006128785,266.77548078050893" fill="#666" /><path d="M 1074.5 274.75 L 1074.5 237.75 L 1125.5 237.75 L 1125.5 200.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1125.5,200.75 1124.8620006128785,208.72451921949107 1118.2748640793927,204.1847359328995" fill="#666" /><path d="M 1125.5 200.75 L 1125.5 237.75 L 1275.5 237.75 L 1275.5 274.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1275.5,274.75 1267.5170496262156,275.27201851470477 1271.0564435181277,268.09757143650455" fill="#666" /><path d="M 1275.5 274.75 L 1275.5 237.75 L 1425.5 237.75 L 1425.5 200.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1425.5,200.75 1421.0564435181277,207.40242856349545 1417.5170496262156,200.22798148529526" fill="#666" /><rect x="1315.5" y="227.75" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="1350.5" y="241.75" text-anchor="middle" font-size="11" fill="#333">Success</text><path d="M 1275.5 274.75 L 1275.5 309.75 L 1524.5 309.75 L 1524.5 344.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1524.5,344.75 1516.7478060755977,346.7257250209634 1518.9128749787521,339.02426563688596" fill="#666" /><rect x="1365" y="299.75" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="1400" y="313.75" text-anchor="middle" font-size="11" fill="#333">Failed</text><path d="M 1524.5 264.75 L 1524.5 232.75 L 1125.5 232.75 L 1125.5 200.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1125.5,200.75 1132.9742670916917,197.8977497581635 1131.7072547132266,205.7967800551567" fill="#666" /><rect x="1290" y="222.75" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="1325" y="236.75" text-anchor="middle" font-size="11" fill="#333">Retry</text><path d="M 924.5 509.75 L 924.5 604.5 L 975.5 604.5 L 975.5 699.25" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="975.5,699.25 969.8369225739548,693.5993757807993 977.5620454080448,691.5203189758463" fill="#666" /><path d="M 1023.5 200.75 L 1023.5 450 L 975.5 450 L 975.5 699.25" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="975.5,699.25 972.182452748919,691.9703104299122 980.1456224738201,692.7370750172647" fill="#666" /><rect x="964.5" y="440" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="999.5" y="454" text-anchor="middle" font-size="11" fill="#333">Abandon</text><path d="M 225.5 354.75 L 225.5 391.75 L 375.5 391.75 L 375.5 428.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="375.5,428.75 367.51704962621557,429.27201851470477 371.05644351812765,422.09757143650455" fill="#666" /><path d="M 225.5 354.75 L 225.5 468.48 L 375.5 468.48 L 375.5 582.21" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="375.5,582.21 368.34657114376404,578.6283166529172 375.0251143387674,574.2241072127936" fill="#666" /><path d="M 375.5 428.75 L 375.5 314.75 L 525.5 314.75 L 525.5 200.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="525.5,200.75 525.0338135080351,208.73640533373492 518.3504768500836,204.33947332192471" fill="#666" /><path d="M 375.5 582.21 L 375.5 391.48 L 525.5 391.48 L 525.5 200.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="525.5,200.75 526.687164204404,208.66142472325825 519.2420873117321,205.73382672110654" fill="#666" /><path d="M 525.5 200.75 L 525.5 317.45 L 675.5 317.45 L 675.5 434.15" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="675.5,434.15 668.3892838662706,430.48425095437227 675.1192737305474,426.1590646662766" fill="#666" /><path d="M 525.5 200.75 L 525.5 237.75 L 675.5 237.75 L 675.5 274.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="675.5,274.75 667.5170496262156,275.27201851470477 671.0564435181276,268.09757143650455" fill="#666" /><path d="M 675.5 434.15 L 675.5 394.45 L 675.5 394.45 L 675.5 354.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="675.5,354.75 679.5,361.6782032302755 671.5,361.6782032302755" fill="#666" /><path d="M 675.5 274.75 L 675.5 237.75 L 1023.5 237.75 L 1023.5 200.75" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1023.5,200.75 1017.5552875888683,206.10354035652455 1015.8913418454987,198.2784982120296" fill="#666" /><rect x="814.5" y="227.75" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="849.5" y="241.75" text-anchor="middle" font-size="11" fill="#333">Yes</text><rect x="888.5" y="702.25" width="180" height="80" fill="#00000015" rx="8" /><rect x="885.5" y="699.25" width="180" height="80" 
+            fill="#ffebee" stroke="#f44336" stroke-width="3" 
+             rx="8" /><text x="975.5" y="744.25" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Abandoned</text><rect x="288.5" y="431.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="285.5" y="428.75" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="375.5" y="473.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Browse</text><rect x="936.5" y="123.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="933.5" y="120.75" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="1023.5" y="165.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Cart</text><rect x="987.5" y="277.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="984.5" y="274.75" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="1074.5" y="319.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Checkout</text><rect x="588.5" y="277.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="585.5" y="274.75" width="180" height="80" 
+            fill="#fff3e0" stroke="#ff9800" stroke-width="2" 
+             rx="8" /><text x="675.5" y="319.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">In Stock?</text><rect x="1188.5" y="277.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="1185.5" y="274.75" width="180" height="80" 
+            fill="#fff3e0" stroke="#ff9800" stroke-width="2" 
+             rx="8" /><text x="1275.5" y="319.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Payment OK?</text><rect x="1437.5" y="267.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="1434.5" y="264.75" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="1524.5" y="309.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Error</text><rect x="138.5" y="277.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="135.5" y="274.75" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="225.5" y="319.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Home</text><rect x="1038.5" y="123.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="1035.5" y="120.75" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="1125.5" y="165.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Payment</text><rect x="438.5" y="123.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="435.5" y="120.75" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="525.5" y="165.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Product</text><rect x="588.5" y="437.15" width="180" height="80" fill="#00000015" rx="8" /><rect x="585.5" y="434.15" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="675.5" y="479.15" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Reviews</text><rect x="288.5" y="585.21" width="180" height="80" fill="#00000015" rx="8" /><rect x="285.5" y="582.21" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="375.5" y="627.21" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Search</text><rect x="-11.5" y="123.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="-14.5" y="120.75" width="180" height="80" 
+            fill="#e8f5e9" stroke="#4caf50" stroke-width="3" 
+             rx="8" /><text x="75.5" y="165.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Start</text><rect x="1338.5" y="123.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="1335.5" y="120.75" width="180" height="80" 
+            fill="#ffebee" stroke="#f44336" stroke-width="3" 
+             rx="8" /><text x="1425.5" y="165.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Success</text><rect x="837.5" y="432.75" width="180" height="80" fill="#00000015" rx="8" /><rect x="834.5" y="429.75" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="924.5" y="474.75" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Waitlist</text></svg>
+        </div>
+        
+        
+        <div class="issues">
+            <h3>⚠️ Detected Issues</h3>
+            <ul>
+                <li>Collision between cart and payment</li><li>Multiple edges using cart's bottom handle for out</li><li>Multiple edges using payment's bottom handle for in</li><li>Multiple edges using decision2's top handle for out</li><li>Multiple edges using abandoned's top handle for in</li><li>Multiple edges using home's bottom handle for out</li><li>Multiple edges using product's bottom handle for in</li><li>Multiple edges using product's bottom handle for out</li><li>Negative coordinates detected: minX=-14.5, minY=120.75</li>
+            </ul>
+        </div>
+        
+    </div>
+</body>
+</html>

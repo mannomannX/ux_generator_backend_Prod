@@ -14,6 +14,7 @@ import { WorkspacePage } from '@/pages/WorkspacePage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { BillingPage } from '@/pages/BillingPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import LayoutTestPage from '@/pages/LayoutTestPage';
 
 function App() {
   const { initialize } = useAuthStore();
@@ -43,6 +44,7 @@ function App() {
           <Route path="/editor-new" element={<FullFeaturedFlowEditor />} />
           <Route path="/editor-simple" element={<EnhancedFlowEditor />} />
           <Route path="/editor-old" element={<CompleteFlowEditor />} />
+          <Route path="/layout-test" element={<LayoutTestPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/billing" element={<BillingPage />} />
         </Route>

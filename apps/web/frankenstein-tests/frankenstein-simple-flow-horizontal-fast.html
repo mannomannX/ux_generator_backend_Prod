@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Flow - Frankenstein Layout</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container { 
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #333; 
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: normal;
+        }
+        .config {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .config-label {
+            color: #666;
+            font-size: 13px;
+        }
+        .config-value {
+            font-weight: 600;
+            color: #333;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #2196f3;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .quality-score {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .score-value {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        .score-label {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        .success { 
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+        .warning {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        .svg-container { 
+            overflow: auto;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin: 20px 0;
+        }
+        .issues {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .issues h3 {
+            color: #f57c00;
+            margin: 0 0 10px 0;
+        }
+        .issues ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            Simple Flow
+            <span class="badge">Ultimate Frankenstein Layout</span>
+        </h1>
+        
+        <div class="config">
+            <div class="config-item">
+                <span class="config-label">Mode:</span>
+                <span class="config-value">horizontal</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Routing:</span>
+                <span class="config-value">orthogonal</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Lanes:</span>
+                <span class="config-value">Disabled</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Frame Mode:</span>
+                <span class="config-value">contain</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Label Mode:</span>
+                <span class="config-value">adaptive</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Quality Priority:</span>
+                <span class="config-value">No</span>
+            </div>
+        </div>
+        
+        <div class="quality-score">
+            <div class="score-value">90/100</div>
+            <div class="score-label">Overall Quality Score</div>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric success">
+                <div class="metric-value">✓</div>
+                <div class="metric-label">Deterministic</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Collisions</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">28%</div>
+                <div class="metric-label">Compactness</div>
+            </div>
+            <div class="metric warning">
+                <div class="metric-value">5</div>
+                <div class="metric-label">Edge Crossings</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Frame Issues</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Handle Conflicts</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">410, 253</div>
+                <div class="metric-label">Min Coords (X,Y)</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">1290×747</div>
+                <div class="metric-label">Canvas Size</div>
+            </div>
+        </div>
+        
+        <div class="svg-container">
+            <svg width="1290" height="746.7" style="border: 1px solid #ddd; background: white;"><line x1="0" y1="0" x2="0" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="50" y1="0" x2="50" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="100" y1="0" x2="100" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="150" y1="0" x2="150" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="200" y1="0" x2="200" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="250" y1="0" x2="250" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="300" y1="0" x2="300" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="350" y1="0" x2="350" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="400" y1="0" x2="400" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="450" y1="0" x2="450" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="500" y1="0" x2="500" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="550" y1="0" x2="550" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="600" y1="0" x2="600" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="650" y1="0" x2="650" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="700" y1="0" x2="700" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="750" y1="0" x2="750" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="800" y1="0" x2="800" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="850" y1="0" x2="850" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="900" y1="0" x2="900" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="950" y1="0" x2="950" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1000" y1="0" x2="1000" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1050" y1="0" x2="1050" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1100" y1="0" x2="1100" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1150" y1="0" x2="1150" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1200" y1="0" x2="1200" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1250" y1="0" x2="1250" y2="746.7" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="0" x2="1290" y2="0" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="50" x2="1290" y2="50" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="100" x2="1290" y2="100" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="150" x2="1290" y2="150" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="200" x2="1290" y2="200" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="250" x2="1290" y2="250" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="300" x2="1290" y2="300" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="350" x2="1290" y2="350" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="400" x2="1290" y2="400" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="450" x2="1290" y2="450" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="500" x2="1290" y2="500" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="550" x2="1290" y2="550" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="600" x2="1290" y2="600" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="650" x2="1290" y2="650" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="700" x2="1290" y2="700" stroke="#f5f5f5" stroke-width="0.5" /><path d="M 500 333.3 L 500 370.3 L 650 370.3 L 650 407.3" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="650,407.3 642.0170496262156,407.8220185147048 645.5564435181276,400.64757143650456" fill="#666" /><path d="M 650 487.3 L 650 524.3 L 800 524.3 L 800 561.3" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="800,561.3 792.0170496262156,561.8220185147047 795.5564435181276,554.6475714365046" fill="#666" /><path d="M 800 561.3 L 800 447.29999999999995 L 950 447.29999999999995 L 950 333.3" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="950,333.3 949.5338135080351,341.28640533373493 942.8504768500836,336.8894733219247" fill="#666" /><rect x="840" y="437.29999999999995" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="875" y="451.29999999999995" text-anchor="middle" font-size="11" fill="#333">Yes</text><path d="M 800 641.3 L 800 604 L 1049 604 L 1049 566.7" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1049,566.7 1043.511231379904,572.5200875453081 1041.2152720234658,564.8566307121562" fill="#666" /><rect x="889.5" y="594" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="924.5" y="608" text-anchor="middle" font-size="11" fill="#333">No</text><path d="M 950 333.3 L 950 370.3 L 1100 370.3 L 1100 407.3" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1100,407.3 1092.0170496262156,407.8220185147048 1095.5564435181277,400.64757143650456" fill="#666" /><path d="M 1049 566.7 L 1049 527 L 1100 527 L 1100 487.3" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1100,487.3 1099.6212881132844,495.2910310540543 1092.8902081614008,490.96754141241627" fill="#666" /><rect x="713" y="564.3" width="180" height="80" fill="#00000015" rx="8" /><rect x="710" y="561.3" width="180" height="80" 
+            fill="#fff3e0" stroke="#ff9800" stroke-width="2" 
+             rx="8" /><text x="800" y="606.3" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Decision</text><rect x="1013" y="410.3" width="180" height="80" fill="#00000015" rx="8" /><rect x="1010" y="407.3" width="180" height="80" 
+            fill="#ffebee" stroke="#f44336" stroke-width="3" 
+             rx="8" /><text x="1100" y="452.3" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">End</text><rect x="563" y="410.3" width="180" height="80" fill="#00000015" rx="8" /><rect x="560" y="407.3" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="650" y="452.3" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Screen 1</text><rect x="863" y="256.3" width="180" height="80" fill="#00000015" rx="8" /><rect x="860" y="253.3" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="950" y="298.3" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Screen 2</text><rect x="962" y="569.7" width="180" height="80" fill="#00000015" rx="8" /><rect x="959" y="566.7" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="1049" y="611.7" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Screen 3</text><rect x="413" y="256.3" width="180" height="80" fill="#00000015" rx="8" /><rect x="410" y="253.3" width="180" height="80" 
+            fill="#e8f5e9" stroke="#4caf50" stroke-width="3" 
+             rx="8" /><text x="500" y="298.3" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Start</text></svg>
+        </div>
+        
+        
+    </div>
+</body>
+</html>

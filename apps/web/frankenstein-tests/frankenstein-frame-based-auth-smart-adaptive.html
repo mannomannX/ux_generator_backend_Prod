@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Frame-based Auth - Frankenstein Layout</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container { 
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #333; 
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: normal;
+        }
+        .config {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .config-label {
+            color: #666;
+            font-size: 13px;
+        }
+        .config-value {
+            font-weight: 600;
+            color: #333;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #2196f3;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .quality-score {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .score-value {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        .score-label {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        .success { 
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+        .warning {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        .svg-container { 
+            overflow: auto;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin: 20px 0;
+        }
+        .issues {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .issues h3 {
+            color: #f57c00;
+            margin: 0 0 10px 0;
+        }
+        .issues ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            Frame-based Auth
+            <span class="badge">Ultimate Frankenstein Layout</span>
+        </h1>
+        
+        <div class="config">
+            <div class="config-item">
+                <span class="config-label">Mode:</span>
+                <span class="config-value">smart</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Routing:</span>
+                <span class="config-value">smart</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Lanes:</span>
+                <span class="config-value">Enabled</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Frame Mode:</span>
+                <span class="config-value">contain</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Label Mode:</span>
+                <span class="config-value">adaptive</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Quality Priority:</span>
+                <span class="config-value">Yes</span>
+            </div>
+        </div>
+        
+        <div class="quality-score">
+            <div class="score-value">20/100</div>
+            <div class="score-label">Overall Quality Score</div>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric success">
+                <div class="metric-value">✓</div>
+                <div class="metric-label">Deterministic</div>
+            </div>
+            <div class="metric error">
+                <div class="metric-value">2</div>
+                <div class="metric-label">Collisions</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">32%</div>
+                <div class="metric-label">Compactness</div>
+            </div>
+            <div class="metric warning">
+                <div class="metric-value">13</div>
+                <div class="metric-label">Edge Crossings</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Frame Issues</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Handle Conflicts</div>
+            </div>
+            <div class="metric error">
+                <div class="metric-value">303, -287</div>
+                <div class="metric-label">Min Coords (X,Y)</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">1397×1287</div>
+                <div class="metric-label">Canvas Size</div>
+            </div>
+        </div>
+        
+        <div class="svg-container">
+            <svg width="1397" height="1287.4" style="border: 1px solid #ddd; background: white;"><line x1="0" y1="0" x2="0" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="50" y1="0" x2="50" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="100" y1="0" x2="100" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="150" y1="0" x2="150" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="200" y1="0" x2="200" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="250" y1="0" x2="250" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="300" y1="0" x2="300" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="350" y1="0" x2="350" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="400" y1="0" x2="400" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="450" y1="0" x2="450" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="500" y1="0" x2="500" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="550" y1="0" x2="550" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="600" y1="0" x2="600" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="650" y1="0" x2="650" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="700" y1="0" x2="700" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="750" y1="0" x2="750" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="800" y1="0" x2="800" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="850" y1="0" x2="850" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="900" y1="0" x2="900" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="950" y1="0" x2="950" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1000" y1="0" x2="1000" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1050" y1="0" x2="1050" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1100" y1="0" x2="1100" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1150" y1="0" x2="1150" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1200" y1="0" x2="1200" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1250" y1="0" x2="1250" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1300" y1="0" x2="1300" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1350" y1="0" x2="1350" y2="1287.4" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="0" x2="1397" y2="0" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="50" x2="1397" y2="50" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="100" x2="1397" y2="100" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="150" x2="1397" y2="150" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="200" x2="1397" y2="200" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="250" x2="1397" y2="250" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="300" x2="1397" y2="300" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="350" x2="1397" y2="350" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="400" x2="1397" y2="400" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="450" x2="1397" y2="450" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="500" x2="1397" y2="500" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="550" x2="1397" y2="550" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="600" x2="1397" y2="600" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="650" x2="1397" y2="650" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="700" x2="1397" y2="700" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="750" x2="1397" y2="750" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="800" x2="1397" y2="800" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="850" x2="1397" y2="850" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="900" x2="1397" y2="900" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="950" x2="1397" y2="950" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="1000" x2="1397" y2="1000" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="1050" x2="1397" y2="1050" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="1100" x2="1397" y2="1100" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="1150" x2="1397" y2="1150" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="1200" x2="1397" y2="1200" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="1250" x2="1397" y2="1250" stroke="#f5f5f5" stroke-width="0.5" /><path d="M 393 -207.4000000000001 L 393 -172.4000000000001 L 393 -172.4000000000001 L 393 -137.4000000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="393,-137.4000000000001 389,-144.3282032302756 397,-144.3282032302756" fill="#666" /><path d="M 553 192.5999999999999 L 553 162.5999999999999 L 673 162.5999999999999 L 673 132.5999999999999" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="673,132.5999999999999 668.5920810280679,139.2760954409655 665.0143722640684,132.1206779129662" fill="#666" /><path d="M 673 252.5999999999999 L 673 192.5999999999999 L 673 192.5999999999999 L 673 132.5999999999999" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="673,132.5999999999999 677,139.5282032302754 669,139.5282032302754" fill="#666" /><path d="M 553 372.5999999999999 L 553 427.0999999999999 L 657 427.0999999999999 L 657 481.5999999999999" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="657,481.5999999999999 649.3233126834824,479.3486733145944 655.1113624435202,473.8261304242832" fill="#666" /><path d="M 393 -57.40000000000009 L 393 455 L 927 455 L 927 967.4000000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="927,967.4000000000001 920.2511437669508,963.1043115166912 927.3457472367652,959.407474814036" fill="#666" /><rect x="625" y="445" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="660" y="459" text-anchor="middle" font-size="11" fill="#333">Not Logged In</text><path d="M 393 -57.40000000000009 L 393 -22.40000000000009 L 553 -22.40000000000009 L 553 12.599999999999909" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="553,12.599999999999909 545.0494004568112,13.487674998998063 548.2559511289688,6.15841631978055" fill="#666" /><rect x="438" y="-32.40000000000009" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="473" y="-18.40000000000009" text-anchor="middle" font-size="11" fill="#333">Logged In</text><path d="M 687 1087.4 L 687 1047.4 L 1013 1047.4 L 1013 1007.4000000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1013,1007.4000000000001 1007.2247443935915,1012.9359211230516 1005.3181238708863,1005.1664424930276" fill="#666" /><rect x="815" y="1037.4" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="850" y="1051.4" text-anchor="middle" font-size="11" fill="#333">New User</text><path d="M 687 1087.4 L 687 1047.4 L 773 1047.4 L 773 1007.4000000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="773,1007.4000000000001 770.6516772454028,1015.047573487077 765.2028457055845,1009.1900795817722" fill="#666" /><rect x="695" y="1037.4" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="730" y="1051.4" text-anchor="middle" font-size="11" fill="#333">Forgot</text><path d="M 1013 1007.4000000000001 L 1013 1047.4 L 687 1047.4 L 687 1087.4" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="687,1087.4 692.7752556064085,1081.8640788769485 694.6818761291137,1089.6335575069725" fill="#666" /><path d="M 773 1007.4000000000001 L 773 1047.4 L 687 1047.4 L 687 1087.4" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="687,1087.4 689.3483227545972,1079.7524265129232 694.7971542944155,1085.6099204182278" fill="#666" /><path d="M 927 967.4000000000001 L 927 670 L 553 670 L 553 372.5999999999999" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="553,372.5999999999999 560.0741048270401,376.33591232445934 553.3016574342269,380.5943106514805" fill="#666" /><rect x="705" y="660" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="740" y="674" text-anchor="middle" font-size="11" fill="#333">Success</text><path d="M 553 272.5999999999999 L 553 262.5999999999999 L 673 262.5999999999999 L 673 252.5999999999999" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="673,252.5999999999999 666.8236583798034,257.6845652902315 665.5084664813605,249.79341389957435" fill="#666" /><rect x="586" y="255.5999999999999" width="180" height="80" fill="#00000015" rx="8" /><rect x="583" y="252.5999999999999" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="673" y="297.5999999999999" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Analytics</text><circle cx="673" cy="252.5999999999999" r="3" fill="#2196f3" opacity="0.5" /><circle cx="763" cy="292.5999999999999" r="3" fill="#2196f3" opacity="0.5" /><circle cx="673" cy="332.5999999999999" r="3" fill="#2196f3" opacity="0.5" /><circle cx="583" cy="292.5999999999999" r="3" fill="#2196f3" opacity="0.5" /><rect x="306" y="-134.4000000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="303" y="-137.4000000000001" width="180" height="80" 
+            fill="#fff3e0" stroke="#ff9800" stroke-width="2" 
+             rx="8" /><text x="393" y="-92.40000000000009" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Auth Check</text><circle cx="393" cy="-137.4000000000001" r="3" fill="#ff9800" opacity="0.5" /><circle cx="483" cy="-97.40000000000009" r="3" fill="#ff9800" opacity="0.5" /><circle cx="393" cy="-57.40000000000009" r="3" fill="#ff9800" opacity="0.5" /><circle cx="303" cy="-97.40000000000009" r="3" fill="#ff9800" opacity="0.5" /><rect x="570" y="484.5999999999999" width="180" height="80" fill="#00000015" rx="8" /><rect x="567" y="481.5999999999999" width="180" height="80" 
+            fill="#ffebee" stroke="#f44336" stroke-width="3" 
+             rx="8" /><text x="657" y="526.5999999999999" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Logout</text><circle cx="657" cy="481.5999999999999" r="3" fill="#f44336" opacity="0.5" /><circle cx="747" cy="521.5999999999999" r="3" fill="#f44336" opacity="0.5" /><circle cx="657" cy="561.5999999999999" r="3" fill="#f44336" opacity="0.5" /><circle cx="567" cy="521.5999999999999" r="3" fill="#f44336" opacity="0.5" /><rect x="686" y="1010.4000000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="683" y="1007.4000000000001" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="773" y="1052.4" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Forgot Password</text><circle cx="773" cy="1007.4000000000001" r="3" fill="#2196f3" opacity="0.5" /><circle cx="863" cy="1047.4" r="3" fill="#2196f3" opacity="0.5" /><circle cx="773" cy="1087.4" r="3" fill="#2196f3" opacity="0.5" /><circle cx="683" cy="1047.4" r="3" fill="#2196f3" opacity="0.5" /><rect x="557" y="967.4000000000001" width="740" height="220" 
+            fill="#f5f5f5" stroke="#9e9e9e" stroke-width="2" 
+            stroke-dasharray="5,5" rx="8" /><text x="927" y="1082.4" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Authentication Flow</text><circle cx="927" cy="967.4000000000001" r="3" fill="#9e9e9e" opacity="0.5" /><circle cx="1297" cy="1077.4" r="3" fill="#9e9e9e" opacity="0.5" /><circle cx="927" cy="1187.4" r="3" fill="#9e9e9e" opacity="0.5" /><circle cx="557" cy="1077.4" r="3" fill="#9e9e9e" opacity="0.5" /><rect x="303" y="12.599999999999909" width="500" height="360" 
+            fill="#f5f5f5" stroke="#9e9e9e" stroke-width="2" 
+            stroke-dasharray="5,5" rx="8" /><text x="553" y="197.5999999999999" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Dashboard Area</text><circle cx="553" cy="12.599999999999909" r="3" fill="#9e9e9e" opacity="0.5" /><circle cx="803" cy="192.5999999999999" r="3" fill="#9e9e9e" opacity="0.5" /><circle cx="553" cy="372.5999999999999" r="3" fill="#9e9e9e" opacity="0.5" /><circle cx="303" cy="192.5999999999999" r="3" fill="#9e9e9e" opacity="0.5" /><rect x="600" y="1010.4000000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="597" y="1007.4000000000001" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="687" y="1052.4" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Login</text><circle cx="687" cy="1007.4000000000001" r="3" fill="#2196f3" opacity="0.5" /><circle cx="777" cy="1047.4" r="3" fill="#2196f3" opacity="0.5" /><circle cx="687" cy="1087.4" r="3" fill="#2196f3" opacity="0.5" /><circle cx="597" cy="1047.4" r="3" fill="#2196f3" opacity="0.5" /><rect x="466" y="195.5999999999999" width="180" height="80" fill="#00000015" rx="8" /><rect x="463" y="192.5999999999999" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="553" y="237.5999999999999" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Overview</text><circle cx="553" cy="192.5999999999999" r="3" fill="#2196f3" opacity="0.5" /><circle cx="643" cy="232.5999999999999" r="3" fill="#2196f3" opacity="0.5" /><circle cx="553" cy="272.5999999999999" r="3" fill="#2196f3" opacity="0.5" /><circle cx="463" cy="232.5999999999999" r="3" fill="#2196f3" opacity="0.5" /><rect x="926" y="1010.4000000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="923" y="1007.4000000000001" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="1013" y="1052.4" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Register</text><circle cx="1013" cy="1007.4000000000001" r="3" fill="#2196f3" opacity="0.5" /><circle cx="1103" cy="1047.4" r="3" fill="#2196f3" opacity="0.5" /><circle cx="1013" cy="1087.4" r="3" fill="#2196f3" opacity="0.5" /><circle cx="923" cy="1047.4" r="3" fill="#2196f3" opacity="0.5" /><rect x="586" y="55.59999999999991" width="180" height="80" fill="#00000015" rx="8" /><rect x="583" y="52.59999999999991" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="673" y="97.59999999999991" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Settings</text><circle cx="673" cy="52.59999999999991" r="3" fill="#2196f3" opacity="0.5" /><circle cx="763" cy="92.59999999999991" r="3" fill="#2196f3" opacity="0.5" /><circle cx="673" cy="132.5999999999999" r="3" fill="#2196f3" opacity="0.5" /><circle cx="583" cy="92.59999999999991" r="3" fill="#2196f3" opacity="0.5" /><rect x="306" y="-284.4000000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="303" y="-287.4000000000001" width="180" height="80" 
+            fill="#e8f5e9" stroke="#4caf50" stroke-width="3" 
+             rx="8" /><text x="393" y="-242.4000000000001" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Start</text><circle cx="393" cy="-287.4000000000001" r="3" fill="#4caf50" opacity="0.5" /><circle cx="483" cy="-247.4000000000001" r="3" fill="#4caf50" opacity="0.5" /><circle cx="393" cy="-207.4000000000001" r="3" fill="#4caf50" opacity="0.5" /><circle cx="303" cy="-247.4000000000001" r="3" fill="#4caf50" opacity="0.5" /></svg>
+        </div>
+        
+        
+        <div class="issues">
+            <h3>⚠️ Detected Issues</h3>
+            <ul>
+                <li>Collision between analytics and overview</li><li>Collision between forgot and login</li><li>Negative coordinates detected: minX=303, minY=-287.4000000000001</li>
+            </ul>
+        </div>
+        
+    </div>
+</body>
+</html>

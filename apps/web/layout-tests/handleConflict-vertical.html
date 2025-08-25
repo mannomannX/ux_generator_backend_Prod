@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Handle Conflict Test - vertical</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5; 
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .mode { 
+            background: #e3f2fd; 
+            padding: 5px 10px; 
+            border-radius: 4px; 
+            display: inline-block;
+        }
+        .svg-container {
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 20px 0;
+            background: white;
+        }
+        .analysis {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .problem {
+            background: #ffebee;
+            color: #c62828;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #f44336;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #4caf50;
+        }
+        .handle-info {
+            font-family: monospace;
+            font-size: 12px;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Handle Conflict Test</h1>
+        <div class="mode">Layout Mode: vertical</div>
+        
+        <div class="svg-container">
+            <svg width="500" height="1550"><line x1="280" y1="280" x2="300" y2="50" stroke="#666" stroke-width="2" /><polygon points="300,50 294.1337038363516,54.962405881956826 294.1337038363516,64.96240588195683" fill="#666" /><line x1="280" y1="410" x2="320" y2="50" stroke="#666" stroke-width="2" /><polygon points="320,50 313.8956847392515,54.93883734673619 313.8956847392515,64.9388373467362" fill="#666" /><line x1="280" y1="540" x2="340" y2="50" stroke="#666" stroke-width="2" /><polygon points="340,50 333.784588095475,54.92586388695407 333.784588095475,64.92586388695406" fill="#666" /><line x1="280" y1="670" x2="360" y2="50" stroke="#666" stroke-width="2" /><polygon points="360,50 353.72028662369803,54.917778666340254 353.72028662369803,64.91777866634025" fill="#666" /><line x1="280" y1="800" x2="380" y2="50" stroke="#666" stroke-width="2" /><polygon points="380,50 373.6783627990898,54.912279006826346 373.6783627990898,64.91227900682634" fill="#666" /><line x1="300" y1="150" x2="280" y2="850" stroke="#666" stroke-width="2" /><polygon points="280,850 275.28559773898877,835.004079135393 275.28559773898877,845.004079135393" fill="#666" /><line x1="320" y1="150" x2="280" y2="980" stroke="#666" stroke-width="2" /><polygon points="280,980 275.48136903485687,965.0115925267197 275.48136903485687,975.0115925267197" fill="#666" /><line x1="340" y1="150" x2="280" y2="1110" stroke="#666" stroke-width="2" /><polygon points="280,1110 275.62378286155183,1095.0194742151712 275.62378286155183,1105.0194742151712" fill="#666" /><line x1="360" y1="150" x2="280" y2="1240" stroke="#666" stroke-width="2" /><polygon points="280,1240 275.7319761150941,1225.026825431843 275.7319761150941,1235.026825431843" fill="#666" /><line x1="380" y1="150" x2="280" y2="1370" stroke="#666" stroke-width="2" /><polygon points="280,1370 275.8169323944527,1355.033424787677 275.8169323944527,1365.033424787677" fill="#666" /><rect x="200" y="50" width="200" height="100" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="300" y="105" text-anchor="middle" font-family="Arial" font-size="14">Central Hub</text><circle cx="300" cy="50" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="310" y="45" font-size="10" fill="#4caf50">IN</text><circle cx="320" cy="50" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="330" y="45" font-size="10" fill="#4caf50">IN</text><circle cx="340" cy="50" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="350" y="45" font-size="10" fill="#4caf50">IN</text><circle cx="360" cy="50" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="370" y="45" font-size="10" fill="#4caf50">IN</text><circle cx="380" cy="50" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="390" y="45" font-size="10" fill="#4caf50">IN</text><circle cx="300" cy="150" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="310" y="155" font-size="10" fill="#f44336">OUT</text><circle cx="320" cy="150" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="330" y="155" font-size="10" fill="#f44336">OUT</text><circle cx="340" cy="150" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="350" y="155" font-size="10" fill="#f44336">OUT</text><circle cx="360" cy="150" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="370" y="155" font-size="10" fill="#f44336">OUT</text><circle cx="380" cy="150" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="390" y="155" font-size="10" fill="#f44336">OUT</text><rect x="200" y="200" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="245" text-anchor="middle" font-family="Arial" font-size="14">Input A1</text><circle cx="280" cy="280" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="290" y="285" font-size="10" fill="#f44336">OUT</text><rect x="200" y="330" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="375" text-anchor="middle" font-family="Arial" font-size="14">Input A2</text><circle cx="280" cy="410" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="290" y="415" font-size="10" fill="#f44336">OUT</text><rect x="200" y="460" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="505" text-anchor="middle" font-family="Arial" font-size="14">Input A3</text><circle cx="280" cy="540" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="290" y="545" font-size="10" fill="#f44336">OUT</text><rect x="200" y="590" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="635" text-anchor="middle" font-family="Arial" font-size="14">Input A4</text><circle cx="280" cy="670" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="290" y="675" font-size="10" fill="#f44336">OUT</text><rect x="200" y="720" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="765" text-anchor="middle" font-family="Arial" font-size="14">Input A5</text><circle cx="280" cy="800" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="290" y="805" font-size="10" fill="#f44336">OUT</text><rect x="200" y="850" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="895" text-anchor="middle" font-family="Arial" font-size="14">Output B1</text><circle cx="280" cy="850" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="290" y="845" font-size="10" fill="#4caf50">IN</text><rect x="200" y="980" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="1025" text-anchor="middle" font-family="Arial" font-size="14">Output B2</text><circle cx="280" cy="980" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="290" y="975" font-size="10" fill="#4caf50">IN</text><rect x="200" y="1110" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="1155" text-anchor="middle" font-family="Arial" font-size="14">Output B3</text><circle cx="280" cy="1110" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="290" y="1105" font-size="10" fill="#4caf50">IN</text><rect x="200" y="1240" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="1285" text-anchor="middle" font-family="Arial" font-size="14">Output B4</text><circle cx="280" cy="1240" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="290" y="1235" font-size="10" fill="#4caf50">IN</text><rect x="200" y="1370" width="160" height="80" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="280" y="1415" text-anchor="middle" font-family="Arial" font-size="14">Output B5</text><circle cx="280" cy="1370" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="290" y="1365" font-size="10" fill="#4caf50">IN</text></svg>
+        </div>
+        
+        <h2>Analysis</h2>
+        <div class="analysis">
+            <div class="problem">⚠️ Node Hub has 5 incoming edges (max recommended: 4)</div><div class="problem">⚠️ Node Hub has 5 outgoing edges (max recommended: 4)</div>
+        </div>
+        
+        <h2>Handle Assignment Details</h2>
+        <div class="handle-info">
+            
+                <strong>Hub:</strong><br>
+                &nbsp;&nbsp;IN: top-0, top-1, top-2, top-3, top-4<br>
+                &nbsp;&nbsp;OUT: bottom-0, bottom-1, bottom-2, bottom-3, bottom-4<br>
+            
+                <strong>A1:</strong><br>
+                &nbsp;&nbsp;IN: none<br>
+                &nbsp;&nbsp;OUT: bottom-0<br>
+            
+                <strong>A2:</strong><br>
+                &nbsp;&nbsp;IN: none<br>
+                &nbsp;&nbsp;OUT: bottom-0<br>
+            
+                <strong>A3:</strong><br>
+                &nbsp;&nbsp;IN: none<br>
+                &nbsp;&nbsp;OUT: bottom-0<br>
+            
+                <strong>A4:</strong><br>
+                &nbsp;&nbsp;IN: none<br>
+                &nbsp;&nbsp;OUT: bottom-0<br>
+            
+                <strong>A5:</strong><br>
+                &nbsp;&nbsp;IN: none<br>
+                &nbsp;&nbsp;OUT: bottom-0<br>
+            
+                <strong>B1:</strong><br>
+                &nbsp;&nbsp;IN: top-0<br>
+                &nbsp;&nbsp;OUT: none<br>
+            
+                <strong>B2:</strong><br>
+                &nbsp;&nbsp;IN: top-0<br>
+                &nbsp;&nbsp;OUT: none<br>
+            
+                <strong>B3:</strong><br>
+                &nbsp;&nbsp;IN: top-0<br>
+                &nbsp;&nbsp;OUT: none<br>
+            
+                <strong>B4:</strong><br>
+                &nbsp;&nbsp;IN: top-0<br>
+                &nbsp;&nbsp;OUT: none<br>
+            
+                <strong>B5:</strong><br>
+                &nbsp;&nbsp;IN: top-0<br>
+                &nbsp;&nbsp;OUT: none<br>
+            
+        </div>
+    </div>
+</body>
+</html>

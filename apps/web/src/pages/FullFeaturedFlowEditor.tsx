@@ -62,11 +62,13 @@ import {
   Type,
   FileText,
   Palette,
-  ExternalLink
+  ExternalLink,
+  Tag
 } from 'lucide-react';
 import { completeExampleFlow } from '@/mocks/completeFlowExample';
-import { autoLayout, smartLayout, compactLayout } from '@/utils/autoLayoutOptimized';
-import { treeLayoutFixed } from '@/utils/treeLayoutFixed';
+import { applyLayoutV3, type LayoutMode } from '@/utils/layoutV3';
+import { applyGeniusLayout } from '@/utils/geniusAutoLayout';
+import { applyCleanLayout } from '@/utils/cleanLayoutAlgorithm';
 import { testAllLayouts } from '@/utils/testLayouts';
 import { analyzeHandleUsage, getBestHandle } from '@/utils/handleManager';
 // Removed smart edge routing imports that were causing edges to disappear
@@ -101,6 +103,17 @@ const nodeTypes = {
 const edgeTypes = {
   custom: EnhancedCustomEdge,
 };
+
+const edgeColors = [
+  { name: 'Gray', value: '#94a3b8' },
+  { name: 'Blue', value: '#3B82F6' },
+  { name: 'Green', value: '#10B981' },
+  { name: 'Red', value: '#EF4444' },
+  { name: 'Purple', value: '#8B5CF6' },
+  { name: 'Orange', value: '#F97316' },
+  { name: 'Yellow', value: '#F59E0B' },
+  { name: 'Indigo', value: '#6366F1' }
+];
 
 const defaultEdgeOptions = {
   type: 'smoothstep',
@@ -189,6 +202,7 @@ function FlowCanvas() {
   }, [setNodesBase]);
   
   const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
+  const selectedEdges = edges.filter(e => e.selected);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [detailsPanelOpen, setDetailsPanelOpen] = useState(false);
   const [showAddNodeMenu, setShowAddNodeMenu] = useState(false);
@@ -487,7 +501,7 @@ function FlowCanvas() {
     }
     
     if (event.shiftKey || event.metaKey || event.ctrlKey) {
-      // Multi-select with Shift/Cmd/Ctrl
+      // Multi-select with Shift/Cmd/Ctrl - DON'T clear edge selections
       setNodes(nds =>
         nds.map(n => {
           if (n.id === node.id) {
@@ -506,6 +520,8 @@ function FlowCanvas() {
         }
         return [...prev, node];
       });
+      
+      setDetailsPanelOpen(true); // Open panel for multi-selection
     } else {
       // Single select - clear all other selections including edges
       setNodes(nds =>
@@ -562,16 +578,30 @@ function FlowCanvas() {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
-  // Delete selected nodes
-  const deleteSelectedNodes = useCallback(() => {
+  // Delete selected elements (nodes and/or edges)
+  const deleteSelectedElements = useCallback(() => {
+    // Delete selected nodes
     const nodesToDelete = selectedNodes.length > 0 ? selectedNodes : nodes.filter(n => n.selected);
     const nodeIds = nodesToDelete.map(n => n.id);
     
+    // Delete selected edges
+    const edgesToDelete = edges.filter(e => e.selected);
+    const edgeIds = edgesToDelete.map(e => e.id);
+    
+    // Remove nodes and their connected edges
     setNodes(nds => nds.filter(n => !nodeIds.includes(n.id)));
-    setEdges(eds => eds.filter(e => !nodeIds.includes(e.source) && !nodeIds.includes(e.target)));
+    setEdges(eds => eds.filter(e => 
+      !edgeIds.includes(e.id) && 
+      !nodeIds.includes(e.source) && 
+      !nodeIds.includes(e.target)
+    ));
+    
     setSelectedNodes([]);
     setDetailsPanelOpen(false);
-  }, [selectedNodes, nodes, setNodes, setEdges]);
+  }, [selectedNodes, nodes, edges, setNodes, setEdges]);
+  
+  // Keep old function name for compatibility
+  const deleteSelectedNodes = deleteSelectedElements;
 
   // Copy node
   const copyNode = useCallback((node: Node) => {
@@ -670,79 +700,47 @@ function FlowCanvas() {
     );
   }, []);
 
-  // Layout functions - all are now frame-aware
-  const applyAutoLayout = useCallback((type: 'smart' | 'tree' | 'compact' | 'horizontal' | 'vertical' = 'smart') => {
-    let layoutResult: { nodes: Node[]; edges: Edge[] };
-    
-    switch(type) {
-      case 'smart':
-        layoutResult = smartLayout(nodes, edges);
-        break;
-      case 'tree':
-        layoutResult = treeLayoutFixed(nodes, edges);
-        break;
-      case 'compact':
-        layoutResult = compactLayout(nodes, edges);
-        break;
-      case 'horizontal':
-        layoutResult = autoLayout(nodes, edges, { direction: 'LR' });
-        break;
-      case 'vertical':
-        layoutResult = autoLayout(nodes, edges, { direction: 'TB' });
-        break;
-      default:
-        layoutResult = smartLayout(nodes, edges);
-    }
+  // Toggle pinned status for a node
+  const toggleNodePinned = useCallback((nodeId: string) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                isPinned: !node.data?.isPinned,
+              },
+            }
+          : node
+      )
+    );
+  }, [setNodes]);
+
+  // Layout functions using new perfect auto-layout
+  const applyAutoLayout = useCallback((type: LayoutMode = 'vertical') => {
+    // Use Clean Layout - Strikte In/Out Trennung, saubere 90° Winkel
+    const layoutResult = applyCleanLayout(nodes, edges, 
+      type === 'compact' ? 'compact' : 
+      type === 'horizontal' ? 'horizontal' : 
+      type === 'vertical' ? 'vertical' : 
+      'tree'
+    );
     
     // Apply optimized layout with smart handle assignments and maintain frame sorting
-    setNodes(sortNodesWithFramesInBackground(layoutResult.nodes));
+    // Ensure proper z-ordering: frames in back, then edges, then nodes
+    const sortedNodes = sortNodesWithFramesInBackground(layoutResult.nodes);
     
-    // Update edges with optimized handles and preserve ALL existing edges
-    setEdges(currentEdges => {
-      console.log(`📊 Updating edges after ${type} layout`);
-      console.log(`  Current edges: ${currentEdges.length}`);
-      console.log(`  Layout edges: ${layoutResult.edges.length}`);
-      
-      // Update only the handle positions from layout, keep all edge data
-      const updatedEdges = currentEdges.map(existingEdge => {
-        const layoutEdge = layoutResult.edges.find(e => e.id === existingEdge.id);
-        
-        // Check if source and target nodes still exist
-        const sourceExists = layoutResult.nodes.find(n => n.id === existingEdge.source);
-        const targetExists = layoutResult.nodes.find(n => n.id === existingEdge.target);
-        
-        if (!sourceExists || !targetExists) {
-          console.warn(`⚠️ Edge ${existingEdge.id} references missing nodes:`, {
-            source: existingEdge.source,
-            sourceExists: !!sourceExists,
-            target: existingEdge.target,
-            targetExists: !!targetExists
-          });
-        }
-        
-        if (layoutEdge) {
-          console.log(`  Edge ${existingEdge.id}: ${existingEdge.source} -> ${existingEdge.target}`);
-          console.log(`    Handles: ${layoutEdge.sourceHandle || 'default'} -> ${layoutEdge.targetHandle || 'default'}`);
-          
-          return {
-            ...existingEdge,
-            sourceHandle: layoutEdge.sourceHandle,
-            targetHandle: layoutEdge.targetHandle,
-            data: {
-              ...existingEdge.data,
-              sourceHandle: layoutEdge.sourceHandle,
-              targetHandle: layoutEdge.targetHandle
-            }
-          };
-        }
-        // Keep edges that weren't in layout result unchanged
-        console.log(`  Edge ${existingEdge.id} not in layout result, keeping unchanged`);
-        return existingEdge;
-      });
-      
-      console.log(`  Final edges: ${updatedEdges.length}`);
-      return updatedEdges;
-    });
+    // Add z-index to ensure nodes are always above edges
+    const nodesWithZIndex = sortedNodes.map(node => ({
+      ...node,
+      zIndex: node.type === 'frame' ? 0 : 1000, // Frames at 0, other nodes at 1000 (edges default to 0)
+    }));
+    
+    setNodes(nodesWithZIndex);
+    
+    // Update edges with optimized handles from the layout result
+    setEdges(layoutResult.edges);
     
     setTimeout(() => fitView({ padding: 0.1, duration: 800 }), 50);
     setShowLayoutMenu(false);
@@ -847,6 +845,11 @@ function FlowCanvas() {
         setNodes(nds => nds.map(n => ({ ...n, selected: true })));
         setSelectedNodes(nodes);
       }
+      // Delete key - delete selected elements (nodes and/or edges)
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteSelectedElements();
+      }
       // Delete is now handled by ReactFlow's onNodesDelete and onEdgesDelete
       if ((e.metaKey || e.ctrlKey) && e.key === '=') {
         e.preventDefault();
@@ -877,7 +880,7 @@ function FlowCanvas() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodes, nodes, edges, editingNode, copyNode, pasteNode, duplicateNode, deleteSelectedNodes, applyAutoLayout, setNodes, setEdges, zoomIn, zoomOut, zoomTo]);
+  }, [selectedNodes, nodes, edges, editingNode, copyNode, pasteNode, duplicateNode, deleteSelectedElements, applyAutoLayout, setNodes, setEdges, zoomIn, zoomOut, zoomTo]);
 
   const nodeColor = (node: Node) => {
     switch (node.type) {
@@ -1123,24 +1126,21 @@ function FlowCanvas() {
             connectionLineStyle={{ strokeDasharray: '5 5', stroke: '#94a3b8' }}
             edgesUpdatable={false}
             onEdgeClick={(event, edge) => {
-              event.stopPropagation();
-              
               if (event.shiftKey || event.metaKey || event.ctrlKey) {
-                // Multi-select edges with Shift/Cmd/Ctrl
+                // Multi-select - toggle this edge
                 setEdges(eds =>
-                  eds.map(e => {
-                    if (e.id === edge.id) {
-                      return { ...e, selected: !e.selected };
-                    }
-                    return e;
-                  })
+                  eds.map(e => 
+                    e.id === edge.id 
+                      ? { ...e, selected: !e.selected }
+                      : e
+                  )
                 );
               } else {
-                // Single select - clear node selections and select only this edge
+                // Single select - clear all and select only this edge
                 setNodes(nds =>
                   nds.map(n => ({ ...n, selected: false }))
                 );
-                setSelectedNodes([]); // Clear selected nodes array
+                setSelectedNodes([]);
                 setEdges(eds =>
                   eds.map(e => ({
                     ...e,
@@ -1165,7 +1165,9 @@ function FlowCanvas() {
               const edgeIds = edgesToDelete.map(e => e.id);
               setEdges(eds => eds.filter(e => !edgeIds.includes(e.id)));
             }}
-            multiSelectionKeyCode={['Meta', 'Control']}
+            multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
+            selectNodesOnDrag={false}
+            selectionOnDrag={false}
           >
             <Background 
               variant={BackgroundVariant.Dots} 
@@ -1203,40 +1205,147 @@ function FlowCanvas() {
                 )}
               </div>
             </Panel>
+            
+            {/* Floating Menu for Multiple Selected Edges */}
+            {selectedEdges.length > 1 && selectedNodes.length === 0 && (
+              <Panel position="bottom-center" className="bg-white rounded-lg shadow-xl border border-gray-300 p-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700 mr-2">{selectedEdges.length} edges selected:</span>
+                  
+                  {/* Edge Type Buttons */}
+                  <div className="flex items-center gap-1 border-l border-gray-200 pl-2">
+                    <button
+                      onClick={() => selectedEdges.forEach(edge => handleEdgeTypeChange(edge.id, 'smoothstep'))}
+                      className="p-1.5 text-xs rounded hover:bg-gray-100"
+                      title="Smooth"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 16 16">
+                        <path d="M2 8 Q 8 4, 14 8" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => selectedEdges.forEach(edge => handleEdgeTypeChange(edge.id, 'straight'))}
+                      className="p-1.5 text-xs rounded hover:bg-gray-100"
+                      title="Straight"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 16 16">
+                        <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => selectedEdges.forEach(edge => handleEdgeTypeChange(edge.id, 'bezier'))}
+                      className="p-1.5 text-xs rounded hover:bg-gray-100"
+                      title="Curved"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 16 16">
+                        <path d="M2 8 C 8 2, 8 14, 14 8" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Style Toggle */}
+                  <div className="flex items-center gap-1 border-l border-gray-200 pl-2">
+                    <button
+                      onClick={() => selectedEdges.forEach(edge => handleEdgeColorChange(edge.id, 'solid'))}
+                      className="p-1.5 text-xs rounded hover:bg-gray-100"
+                      title="Solid"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 16 16">
+                        <line x1="0" y1="8" x2="16" y2="8" stroke="currentColor" strokeWidth="2"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => selectedEdges.forEach(edge => handleEdgeColorChange(edge.id, 'dashed'))}
+                      className="p-1.5 text-xs rounded hover:bg-gray-100"
+                      title="Dashed"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 16 16">
+                        <line x1="0" y1="8" x2="3" y2="8" stroke="currentColor" strokeWidth="2"/>
+                        <line x1="5" y1="8" x2="8" y2="8" stroke="currentColor" strokeWidth="2"/>
+                        <line x1="10" y1="8" x2="13" y2="8" stroke="currentColor" strokeWidth="2"/>
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Color Options */}
+                  <div className="flex items-center gap-1 border-l border-gray-200 pl-2">
+                    {edgeColors.slice(0, 5).map(color => (
+                      <button
+                        key={color.value}
+                        onClick={() => selectedEdges.forEach(edge => handleEdgeColorChange(edge.id, color.value))}
+                        className="w-5 h-5 rounded hover:scale-110 transition-transform border-2"
+                        style={{ 
+                          backgroundColor: color.value,
+                          borderColor: '#e5e7eb'
+                        }}
+                        title={color.name}
+                      />
+                    ))}
+                  </div>
+                  
+                  {/* Delete Button */}
+                  <div className="border-l border-gray-200 pl-2">
+                    <button
+                      onClick={deleteSelectedElements}
+                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                      title="Delete selected edges"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </Panel>
+            )}
           </ReactFlow>
         </div>
 
         {/* Right Details Panel */}
-        {detailsPanelOpen && selectedNodes.length > 0 && (
+        {detailsPanelOpen && (selectedNodes.length > 0 || selectedEdges.length > 0) && (
           <div className="w-96 bg-gradient-to-b from-gray-50 to-white border-l shadow-xl flex flex-col overflow-hidden">
             {/* Header */}
             <div className="bg-white border-b sticky top-0 z-10">
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      selectedNodes[0].type === 'start' ? 'bg-green-100' :
-                      selectedNodes[0].type === 'end' ? 'bg-red-100' :
-                      selectedNodes[0].type === 'screen' || selectedNodes[0].type === 'enhanced-screen' ? 'bg-blue-100' :
-                      selectedNodes[0].type === 'decision' ? 'bg-yellow-100' :
-                      selectedNodes[0].type === 'action' ? 'bg-purple-100' :
-                      selectedNodes[0].type === 'note' ? 'bg-amber-100' :
-                      'bg-gray-100'
-                    }`}>
-                      {
-                        selectedNodes[0].type === 'start' ? <PlayCircle className="w-5 h-5 text-green-600" /> :
-                        selectedNodes[0].type === 'end' ? <StopCircle className="w-5 h-5 text-red-600" /> :
-                        selectedNodes[0].type === 'screen' || selectedNodes[0].type === 'enhanced-screen' ? <Square className="w-5 h-5 text-blue-600" /> :
-                        selectedNodes[0].type === 'decision' ? <GitBranch className="w-5 h-5 text-yellow-600" /> :
-                        selectedNodes[0].type === 'action' ? <Activity className="w-5 h-5 text-purple-600" /> :
-                        selectedNodes[0].type === 'note' ? <StickyNote className="w-5 h-5 text-amber-600" /> :
-                        <Box className="w-5 h-5 text-gray-600" />
-                      }
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wider">Selected Node</p>
-                      <p className="font-semibold capitalize">{selectedNodes[0]?.type?.replace('-', ' ') || 'Unknown'}</p>
-                    </div>
+                    {selectedNodes.length > 0 ? (
+                      <>
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          selectedNodes[0].type === 'start' ? 'bg-green-100' :
+                          selectedNodes[0].type === 'end' ? 'bg-red-100' :
+                          selectedNodes[0].type === 'screen' || selectedNodes[0].type === 'enhanced-screen' ? 'bg-blue-100' :
+                          selectedNodes[0].type === 'decision' ? 'bg-yellow-100' :
+                          selectedNodes[0].type === 'action' ? 'bg-purple-100' :
+                          selectedNodes[0].type === 'note' ? 'bg-amber-100' :
+                          'bg-gray-100'
+                        }`}>
+                          {
+                            selectedNodes[0].type === 'start' ? <PlayCircle className="w-5 h-5 text-green-600" /> :
+                            selectedNodes[0].type === 'end' ? <StopCircle className="w-5 h-5 text-red-600" /> :
+                            selectedNodes[0].type === 'screen' || selectedNodes[0].type === 'enhanced-screen' ? <Square className="w-5 h-5 text-blue-600" /> :
+                            selectedNodes[0].type === 'decision' ? <GitBranch className="w-5 h-5 text-yellow-600" /> :
+                            selectedNodes[0].type === 'action' ? <Activity className="w-5 h-5 text-purple-600" /> :
+                            selectedNodes[0].type === 'note' ? <StickyNote className="w-5 h-5 text-amber-600" /> :
+                            <Box className="w-5 h-5 text-gray-600" />
+                          }
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wider">Selected {selectedNodes.length > 1 ? 'Nodes' : 'Node'}</p>
+                          <p className="font-semibold capitalize">
+                            {selectedNodes.length > 1 ? `${selectedNodes.length} Nodes` : selectedNodes[0]?.type?.replace('-', ' ') || 'Unknown'}
+                          </p>
+                        </div>
+                      </>
+                    ) : selectedEdges.length > 0 ? (
+                      <>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-100">
+                          <ArrowRight className="w-5 h-5 text-gray-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wider">Selected {selectedEdges.length > 1 ? 'Edges' : 'Edge'}</p>
+                          <p className="font-semibold">{selectedEdges.length} {selectedEdges.length > 1 ? 'Edges' : 'Edge'}</p>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                   <button 
                     onClick={() => setDetailsPanelOpen(false)}
@@ -1249,7 +1358,194 @@ function FlowCanvas() {
             </div>
             
             <div className="flex-1 overflow-y-auto p-4">
-              {selectedNodes.length === 1 ? (
+              {/* Mixed selection - nodes AND edges */}
+              {selectedNodes.length > 0 && selectedEdges.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Layers className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-blue-900">{selectedNodes.length} nodes and {selectedEdges.length} edges selected</p>
+                        <p className="text-xs text-blue-700">Delete will remove all selected elements</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Delete Button for Mixed Selection */}
+                  <button
+                    onClick={() => {
+                      deleteSelectedElements();
+                    }}
+                    className="w-full px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete All Selected Elements
+                  </button>
+                </div>
+              ) : selectedEdges.length > 0 && selectedNodes.length === 0 ? (
+                // Edge selection panel
+                <div className="space-y-4">
+                  {selectedEdges.length === 1 ? (
+                    // Single edge selected - show label edit
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Tag className="w-4 h-4 text-gray-400" />
+                        <h4 className="font-medium text-sm">Edge Properties</h4>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block">Label</label>
+                          <input
+                            type="text"
+                            value={selectedEdges[0].label || selectedEdges[0].data?.label || ''}
+                            onChange={(e) => {
+                              const edgeId = selectedEdges[0].id;
+                              setEdges(eds => eds.map(edge => 
+                                edge.id === edgeId 
+                                  ? { ...edge, label: e.target.value, data: { ...edge.data, label: e.target.value } }
+                                  : edge
+                              ));
+                            }}
+                            placeholder="Enter edge label..."
+                            className="w-full px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // Multiple edges selected - show bulk style options
+                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <ArrowRight className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-blue-900">{selectedEdges.length} edges selected</p>
+                          <p className="text-xs text-blue-700">Bulk style changes will apply to all</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Bulk Edge Style Options */}
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Palette className="w-4 h-4 text-gray-400" />
+                      <h4 className="font-medium text-sm">Edge Style</h4>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {/* Edge Type */}
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Line Type</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            onClick={() => {
+                              selectedEdges.forEach(edge => {
+                                handleEdgeTypeChange(edge.id, 'smoothstep');
+                              });
+                            }}
+                            className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            Smooth
+                          </button>
+                          <button
+                            onClick={() => {
+                              selectedEdges.forEach(edge => {
+                                handleEdgeTypeChange(edge.id, 'straight');
+                              });
+                            }}
+                            className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            Straight
+                          </button>
+                          <button
+                            onClick={() => {
+                              selectedEdges.forEach(edge => {
+                                handleEdgeTypeChange(edge.id, 'bezier');
+                              });
+                            }}
+                            className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            Curved
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Edge Style (solid/dashed) */}
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Line Style</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => {
+                              selectedEdges.forEach(edge => {
+                                handleEdgeColorChange(edge.id, 'solid');
+                              });
+                            }}
+                            className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
+                              <line x1="0" y1="8" x2="16" y2="8" stroke="currentColor" strokeWidth="2"/>
+                            </svg>
+                            Solid
+                          </button>
+                          <button
+                            onClick={() => {
+                              selectedEdges.forEach(edge => {
+                                handleEdgeColorChange(edge.id, 'dashed');
+                              });
+                            }}
+                            className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
+                              <line x1="0" y1="8" x2="3" y2="8" stroke="currentColor" strokeWidth="2"/>
+                              <line x1="5" y1="8" x2="8" y2="8" stroke="currentColor" strokeWidth="2"/>
+                              <line x1="10" y1="8" x2="13" y2="8" stroke="currentColor" strokeWidth="2"/>
+                            </svg>
+                            Dashed
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Edge Colors */}
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Color</label>
+                        <div className="grid grid-cols-4 gap-2">
+                          {edgeColors.map(color => (
+                            <button
+                              key={color.value}
+                              onClick={() => {
+                                selectedEdges.forEach(edge => {
+                                  handleEdgeColorChange(edge.id, color.value);
+                                });
+                              }}
+                              className="relative w-full h-8 rounded-lg hover:scale-105 transition-transform border-2"
+                              style={{ 
+                                backgroundColor: color.value,
+                                borderColor: '#e5e7eb'
+                              }}
+                              title={color.name}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Delete Button for Edges */}
+                      <button
+                        onClick={() => {
+                          deleteSelectedElements();
+                        }}
+                        className="w-full px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm flex items-center justify-center gap-2 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete {selectedEdges.length > 1 ? 'All Selected Edges' : 'Edge'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : selectedNodes.length === 1 ? (
                 <div className="space-y-6">
                   {/* Basic Info Section */}
                   <div className="bg-white rounded-lg p-4 border border-gray-200">
@@ -1293,6 +1589,33 @@ function FlowCanvas() {
                             </button>
                           </div>
                         )}
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1 mb-1">
+                          {selectedNodes[0].data?.isPinned ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                          Layout Lock
+                        </label>
+                        <button
+                          onClick={() => toggleNodePinned(selectedNodes[0].id)}
+                          className={`w-full px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-all ${
+                            selectedNodes[0].data?.isPinned
+                              ? 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
+                              : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200'
+                          }`}
+                        >
+                          {selectedNodes[0].data?.isPinned ? (
+                            <>
+                              <Lock className="w-4 h-4" />
+                              Node is Pinned (Won't move during auto-layout)
+                            </>
+                          ) : (
+                            <>
+                              <Unlock className="w-4 h-4" />
+                              Node is Unpinned (Will move during auto-layout)
+                            </>
+                          )}
+                        </button>
                       </div>
                       
                       <div>

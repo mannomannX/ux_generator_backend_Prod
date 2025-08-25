@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Parallel Edges Test - Frankenstein Layout</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container { 
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #333; 
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: normal;
+        }
+        .config {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .config-label {
+            color: #666;
+            font-size: 13px;
+        }
+        .config-value {
+            font-weight: 600;
+            color: #333;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #2196f3;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .quality-score {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .score-value {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        .score-label {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        .success { 
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+        .warning {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        .svg-container { 
+            overflow: auto;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin: 20px 0;
+        }
+        .issues {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .issues h3 {
+            color: #f57c00;
+            margin: 0 0 10px 0;
+        }
+        .issues ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            Parallel Edges Test
+            <span class="badge">Ultimate Frankenstein Layout</span>
+        </h1>
+        
+        <div class="config">
+            <div class="config-item">
+                <span class="config-label">Mode:</span>
+                <span class="config-value">compact</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Routing:</span>
+                <span class="config-value">smart</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Lanes:</span>
+                <span class="config-value">Enabled</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Frame Mode:</span>
+                <span class="config-value">contain</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Label Mode:</span>
+                <span class="config-value">adaptive</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Quality Priority:</span>
+                <span class="config-value">Yes</span>
+            </div>
+        </div>
+        
+        <div class="quality-score">
+            <div class="score-value">80/100</div>
+            <div class="score-label">Overall Quality Score</div>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric success">
+                <div class="metric-value">✓</div>
+                <div class="metric-label">Deterministic</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Collisions</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">36%</div>
+                <div class="metric-label">Compactness</div>
+            </div>
+            <div class="metric warning">
+                <div class="metric-value">14</div>
+                <div class="metric-label">Edge Crossings</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Frame Issues</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Handle Conflicts</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">710, 3</div>
+                <div class="metric-label">Min Coords (X,Y)</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">990×997</div>
+                <div class="metric-label">Canvas Size</div>
+            </div>
+        </div>
+        
+        <div class="svg-container">
+            <svg width="990" height="996.6955" style="border: 1px solid #ddd; background: white;"><line x1="0" y1="0" x2="0" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="50" y1="0" x2="50" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="100" y1="0" x2="100" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="150" y1="0" x2="150" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="200" y1="0" x2="200" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="250" y1="0" x2="250" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="300" y1="0" x2="300" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="350" y1="0" x2="350" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="400" y1="0" x2="400" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="450" y1="0" x2="450" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="500" y1="0" x2="500" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="550" y1="0" x2="550" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="600" y1="0" x2="600" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="650" y1="0" x2="650" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="700" y1="0" x2="700" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="750" y1="0" x2="750" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="800" y1="0" x2="800" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="850" y1="0" x2="850" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="900" y1="0" x2="900" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="950" y1="0" x2="950" y2="996.6955" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="0" x2="990" y2="0" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="50" x2="990" y2="50" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="100" x2="990" y2="100" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="150" x2="990" y2="150" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="200" x2="990" y2="200" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="250" x2="990" y2="250" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="300" x2="990" y2="300" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="350" x2="990" y2="350" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="400" x2="990" y2="400" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="450" x2="990" y2="450" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="500" x2="990" y2="500" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="550" x2="990" y2="550" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="600" x2="990" y2="600" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="650" x2="990" y2="650" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="700" x2="990" y2="700" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="750" x2="990" y2="750" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="800" x2="990" y2="800" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="850" x2="990" y2="850" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="900" x2="990" y2="900" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="950" x2="990" y2="950" stroke="#f5f5f5" stroke-width="0.5" /><path d="M 800 816.6955 L 800 450 L 800 450 L 800 83.30449999999996" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="800,83.30449999999996 804,90.23270323027548 796,90.23270323027548" fill="#666" /><rect x="765" y="440" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="800" y="454" text-anchor="middle" font-size="11" fill="#333">Path 1</text><path d="M 800 816.6955 L 800 450 L 800 450 L 800 83.30449999999996" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="800,83.30449999999996 804,90.23270323027548 796,90.23270323027548" fill="#666" /><rect x="765" y="440" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="800" y="454" text-anchor="middle" font-size="11" fill="#333">Path 2</text><path d="M 800 816.6955 L 800 450 L 800 450 L 800 83.30449999999996" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="800,83.30449999999996 804,90.23270323027548 796,90.23270323027548" fill="#666" /><rect x="765" y="440" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="800" y="454" text-anchor="middle" font-size="11" fill="#333">Path 3</text><path d="M 800 83.30449999999996 L 800 310.30449999999996 L 800 310.30449999999996 L 800 537.3045" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="800,537.3045 796,530.3762967697245 804,530.3762967697245" fill="#666" /><path d="M 800 537.3045 L 800 395.30449999999996 L 800 395.30449999999996 L 800 253.30449999999996" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="800,253.30449999999996 804,260.2327032302755 796,260.2327032302755" fill="#666" /><path d="M 800 253.30449999999996 L 800 535 L 800 535 L 800 816.6955" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="800,816.6955 796,809.7672967697246 804,809.7672967697246" fill="#666" /><rect x="765" y="525" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="800" y="539" text-anchor="middle" font-size="11" fill="#333">Back</text><path d="M 800 83.30449999999996 L 800 128.30449999999996 L 800 128.30449999999996 L 800 173.30449999999996" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="800,173.30449999999996 796,166.37629676972446 804,166.37629676972446" fill="#666" /><rect x="765" y="118.30449999999996" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="800" y="132.30449999999996" text-anchor="middle" font-size="11" fill="#333">Skip</text><rect x="713" y="819.6955" width="180" height="80" fill="#00000015" rx="8" /><rect x="710" y="816.6955" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="800" y="861.6955" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Node A</text><rect x="713" y="6.304499999999962" width="180" height="80" fill="#00000015" rx="8" /><rect x="710" y="3.304499999999962" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="800" y="48.30449999999996" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Node B</text><rect x="713" y="540.3045" width="180" height="80" fill="#00000015" rx="8" /><rect x="710" y="537.3045" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="800" y="582.3045" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Node C</text><rect x="713" y="176.30449999999996" width="180" height="80" fill="#00000015" rx="8" /><rect x="710" y="173.30449999999996" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="800" y="218.30449999999996" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Node D</text></svg>
+        </div>
+        
+        
+    </div>
+</body>
+</html>

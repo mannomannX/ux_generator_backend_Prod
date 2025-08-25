@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Flow (Improved) - horizontal</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        h1 { color: #333; }
+        .info { background: #e3f2fd; padding: 10px; border-radius: 4px; margin: 20px 0; }
+        .problems { background: #ffebee; padding: 10px; border-radius: 4px; margin: 20px 0; }
+        .success { background: #e8f5e9; padding: 10px; border-radius: 4px; margin: 20px 0; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simple Flow (Improved)</h1>
+        <div class="info">
+            <strong>Mode:</strong> horizontal | 
+            <strong>Nodes:</strong> 6 | 
+            <strong>Edges:</strong> 6
+        </div>
+        
+        <svg width="300" height="200" style="border: 1px solid #ddd;"><line x1="0" y1="0" x2="0" y2="200" stroke="#f0f0f0" /><line x1="50" y1="0" x2="50" y2="200" stroke="#f0f0f0" /><line x1="100" y1="0" x2="100" y2="200" stroke="#f0f0f0" /><line x1="150" y1="0" x2="150" y2="200" stroke="#f0f0f0" /><line x1="200" y1="0" x2="200" y2="200" stroke="#f0f0f0" /><line x1="250" y1="0" x2="250" y2="200" stroke="#f0f0f0" /><line x1="0" y1="0" x2="300" y2="0" stroke="#f0f0f0" /><line x1="0" y1="50" x2="300" y2="50" stroke="#f0f0f0" /><line x1="0" y1="100" x2="300" y2="100" stroke="#f0f0f0" /><line x1="0" y1="150" x2="300" y2="150" stroke="#f0f0f0" /><path d="M 60 0 L 60 -30 L 80 -30 L 80 130 L 100 130 L 100 100" fill="none" stroke="#666" stroke-width="2" /><polygon points="100,100 103.83540430883362,107.02066049512298 96.16459569116637,107.02066049512298" fill="#666" /><path d="M 100 0 L 100 -30 L 95 -30 L 95 110 L 90 110 L 90 80" fill="none" stroke="#666" stroke-width="2" /><polygon points="90,80 93.83540430883362,87.02066049512298 86.16459569116637,87.02066049512298" fill="#666" /><path d="M 90 0 L 90 -30 L 95 -30 L 95 130 L 100 130 L 100 100" fill="none" stroke="#666" stroke-width="2" /><polygon points="100,100 103.83540430883362,107.02066049512298 96.16459569116637,107.02066049512298" fill="#666" /><text x="95" y="125" font-size="12" fill="#333">Yes</text><path d="M 90 0 L 90 -30 L 95 -30 L 95 130 L 100 130 L 100 100" fill="none" stroke="#666" stroke-width="2" /><polygon points="100,100 103.83540430883362,107.02066049512298 96.16459569116637,107.02066049512298" fill="#666" /><text x="95" y="125" font-size="12" fill="#333">No</text><path d="M 100 0 L 100 -30 L 80 -30 L 80 90 L 60 90 L 60 60" fill="none" stroke="#666" stroke-width="2" /><polygon points="60,60 63.835404308833624,67.02066049512298 56.164595691166376,67.02066049512298" fill="#666" /><path d="M 100 0 L 100 -30 L 80 -30 L 80 90 L 60 90 L 60 60" fill="none" stroke="#666" stroke-width="2" /><polygon points="60,60 63.835404308833624,67.02066049512298 56.164595691166376,67.02066049512298" fill="#666" /><rect x="0" y="0" width="120" height="60" fill="white" stroke="#4caf50" stroke-width="2" rx="4" /><text x="60" y="35" text-anchor="middle" font-size="14">Start</text><text x="5" y="-5" font-size="10" fill="#999">L0</text><circle cx="60" cy="0" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="60" y="-12" font-size="8" fill="#f44336" text-anchor="middle">T0</text><rect x="0" y="0" width="200" height="100" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="100" y="55" text-anchor="middle" font-size="14">Screen B</text><text x="5" y="-5" font-size="10" fill="#999">L1</text><circle cx="100" cy="100" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="100" y="118" font-size="8" fill="#4caf50" text-anchor="middle">B0</text><circle cx="100" cy="0" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="100" y="-12" font-size="8" fill="#f44336" text-anchor="middle">T0</text><rect x="0" y="0" width="180" height="80" fill="white" stroke="#ff9800" stroke-width="2" rx="4" /><text x="90" y="45" text-anchor="middle" font-size="14">Decision</text><text x="5" y="-5" font-size="10" fill="#999">L2</text><circle cx="90" cy="80" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="90" y="98" font-size="8" fill="#4caf50" text-anchor="middle">B0</text><circle cx="90" cy="0" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="90" y="-12" font-size="8" fill="#f44336" text-anchor="middle">T0</text><circle cx="90" cy="0" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="90" y="-12" font-size="8" fill="#f44336" text-anchor="middle">T1</text><rect x="0" y="0" width="200" height="100" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="100" y="55" text-anchor="middle" font-size="14">Screen D</text><text x="5" y="-5" font-size="10" fill="#999">L3</text><circle cx="100" cy="100" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="100" y="118" font-size="8" fill="#4caf50" text-anchor="middle">B0</text><circle cx="100" cy="0" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="100" y="-12" font-size="8" fill="#f44336" text-anchor="middle">T0</text><rect x="0" y="0" width="200" height="100" fill="white" stroke="#2196f3" stroke-width="2" rx="4" /><text x="100" y="55" text-anchor="middle" font-size="14">Screen E</text><text x="5" y="-5" font-size="10" fill="#999">L3</text><circle cx="100" cy="100" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="100" y="118" font-size="8" fill="#4caf50" text-anchor="middle">B0</text><circle cx="100" cy="0" r="4" fill="white" stroke="#f44336" stroke-width="2" /><text x="100" y="-12" font-size="8" fill="#f44336" text-anchor="middle">T0</text><rect x="0" y="0" width="120" height="60" fill="white" stroke="#f44336" stroke-width="2" rx="4" /><text x="60" y="35" text-anchor="middle" font-size="14">End</text><text x="5" y="-5" font-size="10" fill="#999">L4</text><circle cx="60" cy="60" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="60" y="78" font-size="8" fill="#4caf50" text-anchor="middle">B0</text><circle cx="60" cy="60" r="4" fill="white" stroke="#4caf50" stroke-width="2" /><text x="60" y="78" font-size="8" fill="#4caf50" text-anchor="middle">B1</text></svg>
+        
+        <h2>Analyse</h2>
+        <div class="success">✅ Keine Probleme erkannt!</div>
+        
+        <h2>Handle-Verteilung</h2>
+        <pre>{
+  "A": [
+    {
+      "edge": "A-B",
+      "side": "top",
+      "index": 0,
+      "direction": "out"
+    }
+  ],
+  "B": [
+    {
+      "edge": "A-B",
+      "side": "bottom",
+      "index": 0,
+      "direction": "in"
+    },
+    {
+      "edge": "B-C",
+      "side": "top",
+      "index": 0,
+      "direction": "out"
+    }
+  ],
+  "C": [
+    {
+      "edge": "B-C",
+      "side": "bottom",
+      "index": 0,
+      "direction": "in"
+    },
+    {
+      "edge": "C-D",
+      "side": "top",
+      "index": 0,
+      "direction": "out"
+    },
+    {
+      "edge": "C-E",
+      "side": "top",
+      "index": 1,
+      "direction": "out"
+    }
+  ],
+  "D": [
+    {
+      "edge": "C-D",
+      "side": "bottom",
+      "index": 0,
+      "direction": "in"
+    },
+    {
+      "edge": "D-F",
+      "side": "top",
+      "index": 0,
+      "direction": "out"
+    }
+  ],
+  "E": [
+    {
+      "edge": "C-E",
+      "side": "bottom",
+      "index": 0,
+      "direction": "in"
+    },
+    {
+      "edge": "E-F",
+      "side": "top",
+      "index": 0,
+      "direction": "out"
+    }
+  ],
+  "F": [
+    {
+      "edge": "D-F",
+      "side": "bottom",
+      "index": 0,
+      "direction": "in"
+    },
+    {
+      "edge": "E-F",
+      "side": "bottom",
+      "index": 1,
+      "direction": "in"
+    }
+  ]
+}</pre>
+    </div>
+</body>
+</html>

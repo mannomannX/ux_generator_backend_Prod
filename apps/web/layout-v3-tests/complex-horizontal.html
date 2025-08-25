@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Complex Flow with Frames - horizontal</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        h1 { color: #333; margin: 0 0 10px 0; }
+        .info { 
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .stats { display: flex; gap: 20px; margin: 20px 0; }
+        .stat { 
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+        .stat-value { font-size: 24px; font-weight: bold; color: #667eea; }
+        .stat-label { font-size: 12px; color: #666; margin-top: 5px; }
+        .success { background: #e8f5e9; padding: 15px; border-radius: 8px; color: #2e7d32; }
+        .svg-container { overflow: auto; padding: 20px; background: #fafafa; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Complex Flow with Frames</h1>
+        <div class="info">
+            <strong>Layout Mode:</strong> horizontal | 
+            <strong>Nodes:</strong> 9 | 
+            <strong>Edges:</strong> 9
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value">9</div>
+                <div class="stat-label">Nodes</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">9</div>
+                <div class="stat-label">Edges</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">1</div>
+                <div class="stat-label">Frames</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">4</div>
+                <div class="stat-label">Levels</div>
+            </div>
+        </div>
+        
+        <div class="svg-container">
+            <svg width="1340" height="460" style="border: 1px solid #ddd; background: white;"><line x1="0" y1="0" x2="0" y2="460" stroke="#f5f5f5" /><line x1="50" y1="0" x2="50" y2="460" stroke="#f5f5f5" /><line x1="100" y1="0" x2="100" y2="460" stroke="#f5f5f5" /><line x1="150" y1="0" x2="150" y2="460" stroke="#f5f5f5" /><line x1="200" y1="0" x2="200" y2="460" stroke="#f5f5f5" /><line x1="250" y1="0" x2="250" y2="460" stroke="#f5f5f5" /><line x1="300" y1="0" x2="300" y2="460" stroke="#f5f5f5" /><line x1="350" y1="0" x2="350" y2="460" stroke="#f5f5f5" /><line x1="400" y1="0" x2="400" y2="460" stroke="#f5f5f5" /><line x1="450" y1="0" x2="450" y2="460" stroke="#f5f5f5" /><line x1="500" y1="0" x2="500" y2="460" stroke="#f5f5f5" /><line x1="550" y1="0" x2="550" y2="460" stroke="#f5f5f5" /><line x1="600" y1="0" x2="600" y2="460" stroke="#f5f5f5" /><line x1="650" y1="0" x2="650" y2="460" stroke="#f5f5f5" /><line x1="700" y1="0" x2="700" y2="460" stroke="#f5f5f5" /><line x1="750" y1="0" x2="750" y2="460" stroke="#f5f5f5" /><line x1="800" y1="0" x2="800" y2="460" stroke="#f5f5f5" /><line x1="850" y1="0" x2="850" y2="460" stroke="#f5f5f5" /><line x1="900" y1="0" x2="900" y2="460" stroke="#f5f5f5" /><line x1="950" y1="0" x2="950" y2="460" stroke="#f5f5f5" /><line x1="1000" y1="0" x2="1000" y2="460" stroke="#f5f5f5" /><line x1="1050" y1="0" x2="1050" y2="460" stroke="#f5f5f5" /><line x1="1100" y1="0" x2="1100" y2="460" stroke="#f5f5f5" /><line x1="1150" y1="0" x2="1150" y2="460" stroke="#f5f5f5" /><line x1="1200" y1="0" x2="1200" y2="460" stroke="#f5f5f5" /><line x1="1250" y1="0" x2="1250" y2="460" stroke="#f5f5f5" /><line x1="1300" y1="0" x2="1300" y2="460" stroke="#f5f5f5" /><line x1="0" y1="0" x2="1340" y2="0" stroke="#f5f5f5" /><line x1="0" y1="50" x2="1340" y2="50" stroke="#f5f5f5" /><line x1="0" y1="100" x2="1340" y2="100" stroke="#f5f5f5" /><line x1="0" y1="150" x2="1340" y2="150" stroke="#f5f5f5" /><line x1="0" y1="200" x2="1340" y2="200" stroke="#f5f5f5" /><line x1="0" y1="250" x2="1340" y2="250" stroke="#f5f5f5" /><line x1="0" y1="300" x2="1340" y2="300" stroke="#f5f5f5" /><line x1="0" y1="350" x2="1340" y2="350" stroke="#f5f5f5" /><line x1="0" y1="400" x2="1340" y2="400" stroke="#f5f5f5" /><line x1="0" y1="450" x2="1340" y2="450" stroke="#f5f5f5" /><path d="M 85 170 L 145 170 L 145 170 L 205 170" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="205,170 197,166 197,174" fill="#4a90e2" /><path d="M 385 170 L 445 170 L 445 170 L 505 170" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="505,170 497,166 497,174" fill="#4a90e2" /><path d="M 685 170 L 705 170 L 705 240 L 695 240" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="695,240 687,236 687,244" fill="#4a90e2" /><rect x="660" y="195" width="60" height="20" fill="white" stroke="#4a90e2" rx="3" /><text x="690" y="209" text-anchor="middle" font-size="11" fill="#4a90e2">Success</text><path d="M 685 170 L 705 170 L 705 170 L 805 170" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="805,170 797,166 797,174" fill="#4a90e2" /><rect x="715" y="160" width="60" height="20" fill="white" stroke="#4a90e2" rx="3" /><text x="745" y="174" text-anchor="middle" font-size="11" fill="#4a90e2">Failed</text><path d="M 815 280 L 1005 280 L 1005 200 L 1120 200" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="1120,200 1112,196 1112,204" fill="#4a90e2" /><path d="M 1030 240 L 705 240 L 705 320 L 385 320" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="385,320 377,316 377,324" fill="#4a90e2" /><path d="M 385 320 L 445 320 L 445 320 L 505 320" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="505,320 497,316 497,324" fill="#4a90e2" /><path d="M 685 320 L 705 320 L 705 170 L 805 170" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="805,170 797,166 797,174" fill="#4a90e2" /><path d="M 695 240 L 705 240 L 705 320 L 385 320" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="385,320 377,316 377,324" fill="#4a90e2" /><rect x="507" y="132" width="180" height="80" fill="#00000020" rx="8" /><rect x="505" y="130" width="180" height="80" fill="#ff9800" stroke="#f57c00" stroke-width="2" rx="8" /><text x="595" y="175" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Authenticate</text><rect x="505" y="110" width="30" height="18" fill="#f57c00" rx="4" /><text x="520" y="124" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L2</text><circle cx="595" cy="130" r="4" fill="white" stroke="#f57c00" stroke-width="2" /><circle cx="595" cy="210" r="4" fill="white" stroke="#f57c00" stroke-width="2" /><circle cx="505" cy="170" r="4" fill="white" stroke="#f57c00" stroke-width="2" /><circle cx="685" cy="170" r="4" fill="white" stroke="#f57c00" stroke-width="2" /><rect x="727" y="202" width="180" height="80" fill="#00000020" rx="8" /><rect x="725" y="200" width="180" height="80" fill="#2196f3" stroke="#1976d2" stroke-width="2" rx="8" /><text x="815" y="245" text-anchor="middle" font-size="14" font-weight="bold" fill="white">Dashboard</text><rect x="725" y="180" width="30" height="18" fill="#1976d2" rx="4" /><text x="740" y="194" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L0</text><circle cx="815" cy="200" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="815" cy="280" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="725" cy="240" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="905" cy="240" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><rect x="807" y="132" width="180" height="80" fill="#00000020" rx="8" /><rect x="805" y="130" width="180" height="80" fill="#f44336" stroke="#d32f2f" stroke-width="3" rx="8" /><text x="895" y="175" text-anchor="middle" font-size="14" font-weight="bold" fill="white">End</text><rect x="805" y="110" width="30" height="18" fill="#d32f2f" rx="4" /><text x="820" y="124" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L3</text><circle cx="895" cy="130" r="4" fill="white" stroke="#d32f2f" stroke-width="2" /><circle cx="895" cy="210" r="4" fill="white" stroke="#d32f2f" stroke-width="2" /><circle cx="805" cy="170" r="4" fill="white" stroke="#d32f2f" stroke-width="2" /><circle cx="985" cy="170" r="4" fill="white" stroke="#d32f2f" stroke-width="2" /><rect x="695" y="170" width="545" height="140" fill="#f0f0f0" stroke="#9e9e9e" stroke-width="2" stroke-dasharray="5,5" rx="8" opacity="0.3" /><text x="967.5" y="245" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Dashboard Frame</text><rect x="695" y="150" width="30" height="18" fill="#9e9e9e" rx="4" /><text x="710" y="164" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L3</text><circle cx="967.5" cy="170" r="4" fill="white" stroke="#9e9e9e" stroke-width="2" /><circle cx="967.5" cy="310" r="4" fill="white" stroke="#9e9e9e" stroke-width="2" /><circle cx="695" cy="240" r="4" fill="white" stroke="#9e9e9e" stroke-width="2" /><circle cx="1240" cy="240" r="4" fill="white" stroke="#9e9e9e" stroke-width="2" /><rect x="207" y="132" width="180" height="80" fill="#00000020" rx="8" /><rect x="205" y="130" width="180" height="80" fill="#2196f3" stroke="#1976d2" stroke-width="2" rx="8" /><text x="295" y="175" text-anchor="middle" font-size="14" font-weight="bold" fill="white">Login Screen</text><rect x="205" y="110" width="30" height="18" fill="#1976d2" rx="4" /><text x="220" y="124" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L1</text><circle cx="295" cy="130" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="295" cy="210" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="205" cy="170" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="385" cy="170" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><rect x="507" y="282" width="180" height="80" fill="#00000020" rx="8" /><rect x="505" y="280" width="180" height="80" fill="white" stroke="#666" stroke-width="2" rx="8" /><text x="595" y="325" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Logout</text><rect x="505" y="260" width="30" height="18" fill="#666" rx="4" /><text x="520" y="274" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L2</text><circle cx="595" cy="280" r="4" fill="white" stroke="#666" stroke-width="2" /><circle cx="595" cy="360" r="4" fill="white" stroke="#666" stroke-width="2" /><circle cx="505" cy="320" r="4" fill="white" stroke="#666" stroke-width="2" /><circle cx="685" cy="320" r="4" fill="white" stroke="#666" stroke-width="2" /><rect x="1032" y="202" width="180" height="80" fill="#00000020" rx="8" /><rect x="1030" y="200" width="180" height="80" fill="#2196f3" stroke="#1976d2" stroke-width="2" rx="8" /><text x="1120" y="245" text-anchor="middle" font-size="14" font-weight="bold" fill="white">Profile</text><rect x="1030" y="180" width="30" height="18" fill="#1976d2" rx="4" /><text x="1045" y="194" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L0</text><circle cx="1120" cy="200" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="1120" cy="280" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="1030" cy="240" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="1210" cy="240" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><rect x="207" y="282" width="180" height="80" fill="#00000020" rx="8" /><rect x="205" y="280" width="180" height="80" fill="#2196f3" stroke="#1976d2" stroke-width="2" rx="8" /><text x="295" y="325" text-anchor="middle" font-size="14" font-weight="bold" fill="white">Settings</text><rect x="205" y="260" width="30" height="18" fill="#1976d2" rx="4" /><text x="220" y="274" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L1</text><circle cx="295" cy="280" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="295" cy="360" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="205" cy="320" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="385" cy="320" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><rect x="-93" y="132" width="180" height="80" fill="#00000020" rx="8" /><rect x="-95" y="130" width="180" height="80" fill="#4caf50" stroke="#388e3c" stroke-width="3" rx="8" /><text x="-5" y="175" text-anchor="middle" font-size="14" font-weight="bold" fill="white">Start</text><rect x="-95" y="110" width="30" height="18" fill="#388e3c" rx="4" /><text x="-80" y="124" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L0</text><circle cx="-5" cy="130" r="4" fill="white" stroke="#388e3c" stroke-width="2" /><circle cx="-5" cy="210" r="4" fill="white" stroke="#388e3c" stroke-width="2" /><circle cx="-95" cy="170" r="4" fill="white" stroke="#388e3c" stroke-width="2" /><circle cx="85" cy="170" r="4" fill="white" stroke="#388e3c" stroke-width="2" /></svg>
+        </div>
+        
+        <div class="success">
+            <strong>✅ Layout V3 Features:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>React Flow compatible handle IDs (top, bottom, left, right)</li>
+                <li>Deterministic layout (same input = same output)</li>
+                <li>Smart handle selection based on node positions</li>
+                <li>Lane system for parallel edges</li>
+                <li>Frame support with child positioning</li>
+                <li>Collision detection and avoidance</li>
+                <li>Level-based hierarchical arrangement</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

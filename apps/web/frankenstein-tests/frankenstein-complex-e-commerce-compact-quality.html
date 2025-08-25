@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Complex E-commerce - Frankenstein Layout</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container { 
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #333; 
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: normal;
+        }
+        .config {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .config-label {
+            color: #666;
+            font-size: 13px;
+        }
+        .config-value {
+            font-weight: 600;
+            color: #333;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #2196f3;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .quality-score {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .score-value {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        .score-label {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        .success { 
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+        .warning {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        .svg-container { 
+            overflow: auto;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin: 20px 0;
+        }
+        .issues {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .issues h3 {
+            color: #f57c00;
+            margin: 0 0 10px 0;
+        }
+        .issues ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            Complex E-commerce
+            <span class="badge">Ultimate Frankenstein Layout</span>
+        </h1>
+        
+        <div class="config">
+            <div class="config-item">
+                <span class="config-label">Mode:</span>
+                <span class="config-value">compact</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Routing:</span>
+                <span class="config-value">smart</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Lanes:</span>
+                <span class="config-value">Enabled</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Frame Mode:</span>
+                <span class="config-value">contain</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Label Mode:</span>
+                <span class="config-value">adaptive</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Quality Priority:</span>
+                <span class="config-value">Yes</span>
+            </div>
+        </div>
+        
+        <div class="quality-score">
+            <div class="score-value">20/100</div>
+            <div class="score-label">Overall Quality Score</div>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric success">
+                <div class="metric-value">✓</div>
+                <div class="metric-label">Deterministic</div>
+            </div>
+            <div class="metric error">
+                <div class="metric-value">2</div>
+                <div class="metric-label">Collisions</div>
+            </div>
+            <div class="metric warning">
+                <div class="metric-value">17%</div>
+                <div class="metric-label">Compactness</div>
+            </div>
+            <div class="metric warning">
+                <div class="metric-value">81</div>
+                <div class="metric-label">Edge Crossings</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Frame Issues</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Handle Conflicts</div>
+            </div>
+            <div class="metric error">
+                <div class="metric-value">-170, 129</div>
+                <div class="metric-label">Min Coords (X,Y)</div>
+            </div>
+            <div class="metric success">
+                <div class="metric-value">1870×871</div>
+                <div class="metric-label">Canvas Size</div>
+            </div>
+        </div>
+        
+        <div class="svg-container">
+            <svg width="1870.095" height="870.56" style="border: 1px solid #ddd; background: white;"><line x1="0" y1="0" x2="0" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="50" y1="0" x2="50" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="100" y1="0" x2="100" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="150" y1="0" x2="150" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="200" y1="0" x2="200" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="250" y1="0" x2="250" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="300" y1="0" x2="300" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="350" y1="0" x2="350" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="400" y1="0" x2="400" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="450" y1="0" x2="450" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="500" y1="0" x2="500" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="550" y1="0" x2="550" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="600" y1="0" x2="600" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="650" y1="0" x2="650" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="700" y1="0" x2="700" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="750" y1="0" x2="750" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="800" y1="0" x2="800" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="850" y1="0" x2="850" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="900" y1="0" x2="900" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="950" y1="0" x2="950" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1000" y1="0" x2="1000" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1050" y1="0" x2="1050" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1100" y1="0" x2="1100" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1150" y1="0" x2="1150" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1200" y1="0" x2="1200" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1250" y1="0" x2="1250" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1300" y1="0" x2="1300" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1350" y1="0" x2="1350" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1400" y1="0" x2="1400" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1450" y1="0" x2="1450" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1500" y1="0" x2="1500" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1550" y1="0" x2="1550" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1600" y1="0" x2="1600" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1650" y1="0" x2="1650" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1700" y1="0" x2="1700" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1750" y1="0" x2="1750" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1800" y1="0" x2="1800" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="1850" y1="0" x2="1850" y2="870.56" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="0" x2="1870.095" y2="0" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="50" x2="1870.095" y2="50" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="100" x2="1870.095" y2="100" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="150" x2="1870.095" y2="150" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="200" x2="1870.095" y2="200" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="250" x2="1870.095" y2="250" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="300" x2="1870.095" y2="300" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="350" x2="1870.095" y2="350" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="400" x2="1870.095" y2="400" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="450" x2="1870.095" y2="450" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="500" x2="1870.095" y2="500" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="550" x2="1870.095" y2="550" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="600" x2="1870.095" y2="600" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="650" x2="1870.095" y2="650" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="700" x2="1870.095" y2="700" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="750" x2="1870.095" y2="750" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="800" x2="1870.095" y2="800" stroke="#f5f5f5" stroke-width="0.5" /><line x1="0" y1="850" x2="1870.095" y2="850" stroke="#f5f5f5" stroke-width="0.5" /><path d="M -80.09500000000003 209.44 L -80.09500000000003 267.44 L 69.90499999999997 267.44 L 69.90499999999997 325.44" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="69.90499999999997,325.44 61.977433595964115,324.36589995363465 66.87141472434045,318.0374760807342" fill="#666" /><path d="M 519.905 538.6400000000001 L 519.905 515.44 L 768.905 515.44 L 768.905 492.24" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="768.905,492.24 762.8268091086464,497.4414993500209 761.3612739794369,489.5768819540471" fill="#666" /><rect x="609.405" y="505.44000000000005" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="644.405" y="519.44" text-anchor="middle" font-size="11" fill="#333">No</text><path d="M 867.905 260.24 L 867.905 399.44000000000005 L 1126.805 399.44000000000005 L 1126.805 538.6400000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1126.805,538.6400000000001 1119.1577736827448,536.2905469460577 1125.0160728710855,530.842581213797" fill="#666" /><path d="M 1126.805 538.6400000000001 L 1126.805 384.0400000000001 L 969.905 384.0400000000001 L 969.905 229.44" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="969.905,229.44 976.6071304836438,233.80823156210974 969.4730657394219,237.42833103936854" fill="#666" /><path d="M 969.905 229.44 L 969.905 384.0400000000001 L 1426.805 384.0400000000001 L 1426.805 538.6400000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1426.805,538.6400000000001 1418.8253498210465,538.0697517895449 1423.3090243472402,531.4442961264857" fill="#666" /><path d="M 1426.805 538.6400000000001 L 1426.805 384.0400000000001 L 1269.905 384.0400000000001 L 1269.905 229.44" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1269.905,229.44 1276.607130483644,233.80823156210974 1269.4730657394218,237.42833103936854" fill="#666" /><rect x="1313.355" y="374.0400000000001" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="1348.355" y="388.0400000000001" text-anchor="middle" font-size="11" fill="#333">Success</text><path d="M 1426.805 538.6400000000001 L 1426.805 516.5400000000001 L 1680.095 516.5400000000001 L 1680.095 494.44" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="1680.095,494.44 1673.957557250049,499.5714516943135 1672.5823110994563,491.6905445114265" fill="#666" /><rect x="1518.45" y="506.5400000000001" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="1553.45" y="520.5400000000001" text-anchor="middle" font-size="11" fill="#333">Failed</text><path d="M 1680.095 414.44 L 1680.095 321.94 L 969.905 321.94 L 969.905 229.44" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="969.905,229.44 977.6177894571002,227.3156462652271 975.6011390294877,235.05729473650314" fill="#666" /><rect x="1290" y="311.94" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="1325" y="325.94" text-anchor="middle" font-size="11" fill="#333">Retry</text><path d="M 768.905 492.24 L 768.905 591.4 L 819.905 591.4 L 819.905 690.56" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="819.905,690.56 814.3055286809328,684.8463390941582 822.0534398335352,682.8538851370046" fill="#666" /><path d="M 867.905 260.24 L 867.905 475.4 L 819.905 475.4 L 819.905 690.56" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="819.905,690.56 816.6976970871175,683.2310704720937 824.6483876972715,684.1179294358589" fill="#666" /><rect x="808.905" y="465.4" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="843.905" y="479.4" text-anchor="middle" font-size="11" fill="#333">Abandon</text><path d="M 69.90499999999997 405.44 L 69.90499999999997 472.0400000000001 L 526.805 472.0400000000001 L 526.805 538.6400000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="526.805,538.6400000000001 519.0341645097444,540.5410827923541 521.2731962619961,532.860800452986" fill="#666" /><path d="M 69.90499999999997 405.44 L 69.90499999999997 437.78 L 219.90499999999997 437.78 L 219.90499999999997 470.12" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="219.90499999999997,470.12 211.95921685329083,471.0498011537274 215.1268770070494,463.7036505188513" fill="#666" /><path d="M 526.805 538.6400000000001 L 526.805 384.0400000000001 L 369.905 384.0400000000001 L 369.905 229.44" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="369.905,229.44 376.60713048364386,233.80823156210974 369.4730657394219,237.42833103936854" fill="#666" /><path d="M 219.90499999999997 470.12 L 219.90499999999997 349.78 L 369.905 349.78 L 369.905 229.44" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="369.905,229.44 369.635213391172,237.4354496550036 362.84584417967335,233.20408277065593" fill="#666" /><path d="M 369.905 229.44 L 369.905 404.56000000000006 L 783.905 404.56000000000006 L 783.905 579.6800000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="783.905,579.6800000000001 776.0322002655287,578.259076236771 781.1991562085618,572.151493549426" fill="#666" /><path d="M 369.905 229.44 L 369.905 384.0400000000001 L 519.905 384.0400000000001 L 519.905 538.6400000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="519.905,538.6400000000001 513.2821549466593,534.1524702341444 520.4798922507995,530.6606830555511" fill="#666" /><path d="M 693.905 619.6800000000001 L 651.905 619.6800000000001 L 651.905 578.6400000000001 L 609.905 578.6400000000001" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="609.905,578.6400000000001 617.8858886045747,578.0873544704158 614.3740493701952,585.2753295115434" fill="#666" /><path d="M 519.905 538.6400000000001 L 519.905 399.44000000000005 L 867.905 399.44000000000005 L 867.905 260.24" fill="none" stroke="#666" stroke-width="2" opacity="0.8" /><polygon points="867.905,260.24 864.993762382213,267.6914894841758 859.9962020017776,261.4445390086316" fill="#666" /><rect x="658.905" y="389.44000000000005" width="70" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="693.905" y="403.44000000000005" text-anchor="middle" font-size="11" fill="#333">Yes</text><rect x="732.905" y="693.56" width="180" height="80" fill="#00000015" rx="8" /><rect x="729.905" y="690.56" width="180" height="80" 
+            fill="#ffebee" stroke="#f44336" stroke-width="3" 
+             rx="8" /><text x="819.905" y="735.56" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Abandoned</text><rect x="439.80499999999995" y="541.6400000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="436.80499999999995" y="538.6400000000001" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="526.805" y="583.6400000000001" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Browse</text><rect x="780.905" y="183.24" width="180" height="80" fill="#00000015" rx="8" /><rect x="777.905" y="180.24" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="867.905" y="225.24" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Cart</text><rect x="1039.805" y="541.6400000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="1036.805" y="538.6400000000001" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="1126.805" y="583.6400000000001" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Checkout</text><rect x="432.905" y="541.6400000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="429.905" y="538.6400000000001" width="180" height="80" 
+            fill="#fff3e0" stroke="#ff9800" stroke-width="2" 
+             rx="8" /><text x="519.905" y="583.6400000000001" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">In Stock?</text><rect x="1339.805" y="541.6400000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="1336.805" y="538.6400000000001" width="180" height="80" 
+            fill="#fff3e0" stroke="#ff9800" stroke-width="2" 
+             rx="8" /><text x="1426.805" y="583.6400000000001" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Payment OK?</text><rect x="1593.095" y="417.44" width="180" height="80" fill="#00000015" rx="8" /><rect x="1590.095" y="414.44" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="1680.095" y="459.44" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Error</text><rect x="-17.095000000000027" y="328.44" width="180" height="80" fill="#00000015" rx="8" /><rect x="-20.095000000000027" y="325.44" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="69.90499999999997" y="370.44" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Home</text><rect x="882.905" y="152.44" width="180" height="80" fill="#00000015" rx="8" /><rect x="879.905" y="149.44" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="969.905" y="194.44" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Payment</text><rect x="282.905" y="152.44" width="180" height="80" fill="#00000015" rx="8" /><rect x="279.905" y="149.44" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="369.905" y="194.44" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Product</text><rect x="696.905" y="582.6800000000001" width="180" height="80" fill="#00000015" rx="8" /><rect x="693.905" y="579.6800000000001" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="783.905" y="624.6800000000001" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Reviews</text><rect x="132.90499999999997" y="473.12" width="180" height="80" fill="#00000015" rx="8" /><rect x="129.90499999999997" y="470.12" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="219.90499999999997" y="515.12" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Search</text><rect x="-167.09500000000003" y="132.44" width="180" height="80" fill="#00000015" rx="8" /><rect x="-170.09500000000003" y="129.44" width="180" height="80" 
+            fill="#e8f5e9" stroke="#4caf50" stroke-width="3" 
+             rx="8" /><text x="-80.09500000000003" y="174.44" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Start</text><rect x="1182.905" y="152.44" width="180" height="80" fill="#00000015" rx="8" /><rect x="1179.905" y="149.44" width="180" height="80" 
+            fill="#ffebee" stroke="#f44336" stroke-width="3" 
+             rx="8" /><text x="1269.905" y="194.44" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Success</text><rect x="681.905" y="415.24" width="180" height="80" fill="#00000015" rx="8" /><rect x="678.905" y="412.24" width="180" height="80" 
+            fill="#e3f2fd" stroke="#2196f3" stroke-width="2" 
+             rx="8" /><text x="768.905" y="457.24" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333">Waitlist</text></svg>
+        </div>
+        
+        
+        <div class="issues">
+            <h3>⚠️ Detected Issues</h3>
+            <ul>
+                <li>Collision between browse and decision1</li><li>Collision between cart and payment</li><li>Negative coordinates detected: minX=-170.09500000000003, minY=129.44</li>
+            </ul>
+        </div>
+        
+    </div>
+</body>
+</html>

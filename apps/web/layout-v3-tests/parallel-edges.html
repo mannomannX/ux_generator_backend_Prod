@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Parallel Edges Test - compact</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        h1 { color: #333; margin: 0 0 10px 0; }
+        .info { 
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .stats { display: flex; gap: 20px; margin: 20px 0; }
+        .stat { 
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+        .stat-value { font-size: 24px; font-weight: bold; color: #667eea; }
+        .stat-label { font-size: 12px; color: #666; margin-top: 5px; }
+        .success { background: #e8f5e9; padding: 15px; border-radius: 8px; color: #2e7d32; }
+        .svg-container { overflow: auto; padding: 20px; background: #fafafa; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Parallel Edges Test</h1>
+        <div class="info">
+            <strong>Layout Mode:</strong> compact | 
+            <strong>Nodes:</strong> 3 | 
+            <strong>Edges:</strong> 5
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value">3</div>
+                <div class="stat-label">Nodes</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">5</div>
+                <div class="stat-label">Edges</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">0</div>
+                <div class="stat-label">Frames</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">2</div>
+                <div class="stat-label">Levels</div>
+            </div>
+        </div>
+        
+        <div class="svg-container">
+            <svg width="810" height="515" style="border: 1px solid #ddd; background: white;"><line x1="0" y1="0" x2="0" y2="515" stroke="#f5f5f5" /><line x1="50" y1="0" x2="50" y2="515" stroke="#f5f5f5" /><line x1="100" y1="0" x2="100" y2="515" stroke="#f5f5f5" /><line x1="150" y1="0" x2="150" y2="515" stroke="#f5f5f5" /><line x1="200" y1="0" x2="200" y2="515" stroke="#f5f5f5" /><line x1="250" y1="0" x2="250" y2="515" stroke="#f5f5f5" /><line x1="300" y1="0" x2="300" y2="515" stroke="#f5f5f5" /><line x1="350" y1="0" x2="350" y2="515" stroke="#f5f5f5" /><line x1="400" y1="0" x2="400" y2="515" stroke="#f5f5f5" /><line x1="450" y1="0" x2="450" y2="515" stroke="#f5f5f5" /><line x1="500" y1="0" x2="500" y2="515" stroke="#f5f5f5" /><line x1="550" y1="0" x2="550" y2="515" stroke="#f5f5f5" /><line x1="600" y1="0" x2="600" y2="515" stroke="#f5f5f5" /><line x1="650" y1="0" x2="650" y2="515" stroke="#f5f5f5" /><line x1="700" y1="0" x2="700" y2="515" stroke="#f5f5f5" /><line x1="750" y1="0" x2="750" y2="515" stroke="#f5f5f5" /><line x1="800" y1="0" x2="800" y2="515" stroke="#f5f5f5" /><line x1="0" y1="0" x2="810" y2="0" stroke="#f5f5f5" /><line x1="0" y1="50" x2="810" y2="50" stroke="#f5f5f5" /><line x1="0" y1="100" x2="810" y2="100" stroke="#f5f5f5" /><line x1="0" y1="150" x2="810" y2="150" stroke="#f5f5f5" /><line x1="0" y1="200" x2="810" y2="200" stroke="#f5f5f5" /><line x1="0" y1="250" x2="810" y2="250" stroke="#f5f5f5" /><line x1="0" y1="300" x2="810" y2="300" stroke="#f5f5f5" /><line x1="0" y1="350" x2="810" y2="350" stroke="#f5f5f5" /><line x1="0" y1="400" x2="810" y2="400" stroke="#f5f5f5" /><line x1="0" y1="450" x2="810" y2="450" stroke="#f5f5f5" /><line x1="0" y1="500" x2="810" y2="500" stroke="#f5f5f5" /><path d="M 470 225 L 500 225 L 500 270 L 530 270" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="530,270 522,266 522,274" fill="#4a90e2" /><rect x="470" y="237.5" width="60" height="20" fill="white" stroke="#4a90e2" rx="3" /><text x="500" y="251.5" text-anchor="middle" font-size="11" fill="#4a90e2">Connection 1</text><path d="M 470 225 L 500 245 L 500 290 L 530 270" fill="none" stroke="#7cb342" stroke-width="2" opacity="0.8" /><polygon points="530,270 522,266 522,274" fill="#7cb342" /><rect x="470" y="237.5" width="60" height="20" fill="white" stroke="#7cb342" rx="3" /><text x="500" y="251.5" text-anchor="middle" font-size="11" fill="#7cb342">Connection 2</text><path d="M 470 225 L 500 265 L 500 310 L 530 270" fill="none" stroke="#fb8c00" stroke-width="2" opacity="0.8" /><polygon points="530,270 522,266 522,274" fill="#fb8c00" /><rect x="470" y="237.5" width="60" height="20" fill="white" stroke="#fb8c00" rx="3" /><text x="500" y="251.5" text-anchor="middle" font-size="11" fill="#fb8c00">Connection 3</text><path d="M 620 310 L 620 322.5 L 620 322.5 L 620 335" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="620,335 612,331 612,339" fill="#4a90e2" /><path d="M 470 225 L 510 225 L 510 375 L 530 375" fill="none" stroke="#4a90e2" stroke-width="2" opacity="0.8" /><polygon points="530,375 522,371 522,379" fill="#4a90e2" /><rect x="470" y="290" width="60" height="20" fill="white" stroke="#4a90e2" rx="3" /><text x="500" y="304" text-anchor="middle" font-size="11" fill="#4a90e2">Direct</text><rect x="292" y="187" width="180" height="80" fill="#00000020" rx="8" /><rect x="290" y="185" width="180" height="80" fill="#2196f3" stroke="#1976d2" stroke-width="2" rx="8" /><text x="380" y="230" text-anchor="middle" font-size="14" font-weight="bold" fill="white">Node A</text><rect x="290" y="165" width="30" height="18" fill="#1976d2" rx="4" /><text x="305" y="179" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L0</text><circle cx="380" cy="185" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="380" cy="265" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="290" cy="225" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="470" cy="225" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><rect x="532" y="232" width="180" height="80" fill="#00000020" rx="8" /><rect x="530" y="230" width="180" height="80" fill="#2196f3" stroke="#1976d2" stroke-width="2" rx="8" /><text x="620" y="275" text-anchor="middle" font-size="14" font-weight="bold" fill="white">Node B</text><rect x="530" y="210" width="30" height="18" fill="#1976d2" rx="4" /><text x="545" y="224" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L1</text><circle cx="620" cy="230" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="620" cy="310" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="530" cy="270" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="710" cy="270" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><rect x="532" y="337" width="180" height="80" fill="#00000020" rx="8" /><rect x="530" y="335" width="180" height="80" fill="#2196f3" stroke="#1976d2" stroke-width="2" rx="8" /><text x="620" y="380" text-anchor="middle" font-size="14" font-weight="bold" fill="white">Node C</text><rect x="530" y="315" width="30" height="18" fill="#1976d2" rx="4" /><text x="545" y="329" text-anchor="middle" fill="white" font-size="11" font-weight="bold">L1</text><circle cx="620" cy="335" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="620" cy="415" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="530" cy="375" r="4" fill="white" stroke="#1976d2" stroke-width="2" /><circle cx="710" cy="375" r="4" fill="white" stroke="#1976d2" stroke-width="2" /></svg>
+        </div>
+        
+        <div class="success">
+            <strong>✅ Layout V3 Features:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>React Flow compatible handle IDs (top, bottom, left, right)</li>
+                <li>Deterministic layout (same input = same output)</li>
+                <li>Smart handle selection based on node positions</li>
+                <li>Lane system for parallel edges</li>
+                <li>Frame support with child positioning</li>
+                <li>Collision detection and avoidance</li>
+                <li>Level-based hierarchical arrangement</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

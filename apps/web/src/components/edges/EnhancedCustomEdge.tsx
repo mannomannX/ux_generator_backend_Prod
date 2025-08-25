@@ -538,29 +538,12 @@ export const EnhancedCustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
         </g>
       )}
       
-      {/* Grabbing spots at source and target endpoints when selected */}
+      {/* Edge endpoint grabbers with visual and interactive elements combined */}
       {(selected || showMenu) && (
         <>
-          {/* Source endpoint grabber (start - NO arrow here) */}
-          <g 
-            style={{ cursor: 'grab' }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              setIsDraggingEndpoint('source');
-            }}
-            onMouseEnter={() => setHoveredEndpoint('source')}
-            onMouseLeave={() => setHoveredEndpoint(null)}
-            title="Source (Anfang) - kein Pfeil"
-          >
-            {/* Invisible larger hit area - includes border */}
-            <circle
-              cx={sourceX}
-              cy={sourceY}
-              r={20}
-              fill="transparent"
-              style={{ pointerEvents: 'all' }}
-            />
-            {/* Visible circle with border */}
+          {/* Source endpoint (start - NO arrow here) */}
+          <g>
+            {/* Visible circles first */}
             <circle
               cx={sourceX}
               cy={sourceY}
@@ -569,8 +552,8 @@ export const EnhancedCustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
               stroke="white"
               strokeWidth={2}
               opacity={0.9}
+              style={{ pointerEvents: 'none' }}
             />
-            {/* Inner white dot */}
             <circle
               cx={sourceX}
               cy={sourceY}
@@ -578,28 +561,28 @@ export const EnhancedCustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
               fill="white"
               style={{ pointerEvents: 'none' }}
             />
-          </g>
-          
-          {/* Target endpoint grabber (end - WITH arrow) */}
-          <g 
-            style={{ cursor: 'grab' }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              setIsDraggingEndpoint('target');
-            }}
-            onMouseEnter={() => setHoveredEndpoint('target')}
-            onMouseLeave={() => setHoveredEndpoint(null)}
-            title="Target (Ende) - mit Pfeil"
-          >
-            {/* Invisible larger hit area - includes border */}
+            {/* Grab area on top - SAME EXACT POSITION */}
             <circle
-              cx={targetX}
-              cy={targetY}
+              cx={sourceX}
+              cy={sourceY}
               r={20}
               fill="transparent"
-              style={{ pointerEvents: 'all' }}
+              stroke="transparent"
+              strokeWidth={0}
+              style={{ cursor: 'grab' }}
+              pointerEvents="all"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                setIsDraggingEndpoint('source');
+              }}
+              onMouseEnter={() => setHoveredEndpoint('source')}
+              onMouseLeave={() => setHoveredEndpoint(null)}
             />
-            {/* Visible circle with border */}
+          </g>
+          
+          {/* Target endpoint (end - WITH arrow) */}
+          <g>
+            {/* Visible circles first */}
             <circle
               cx={targetX}
               cy={targetY}
@@ -608,14 +591,31 @@ export const EnhancedCustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
               stroke="white"
               strokeWidth={2}
               opacity={0.9}
+              style={{ pointerEvents: 'none' }}
             />
-            {/* Inner white dot */}
             <circle
               cx={targetX}
               cy={targetY}
               r={3}
               fill="white"
               style={{ pointerEvents: 'none' }}
+            />
+            {/* Grab area on top - SAME EXACT POSITION */}
+            <circle
+              cx={targetX}
+              cy={targetY}
+              r={20}
+              fill="transparent"
+              stroke="transparent"
+              strokeWidth={0}
+              style={{ cursor: 'grab' }}
+              pointerEvents="all"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                setIsDraggingEndpoint('target');
+              }}
+              onMouseEnter={() => setHoveredEndpoint('target')}
+              onMouseLeave={() => setHoveredEndpoint(null)}
             />
           </g>
         </>
@@ -785,7 +785,7 @@ export const EnhancedCustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
               
               {/* Color Picker Button */}
               {data?.onColorChange && (
-                <>
+                <div className="relative">
                   <button
                     onClick={() => setShowColorPicker(!showColorPicker)}
                     className="p-2 hover:bg-gray-100 rounded-md transition-colors ml-1 border-l border-gray-200"
@@ -795,29 +795,31 @@ export const EnhancedCustomEdge: FC<EdgeProps<CustomEdgeData>> = ({
                   </button>
                   
                   {showColorPicker && (
-                    <div className="flex items-center gap-1 border-l border-gray-200 pl-1 ml-1">
-                      {edgeColors.map(color => (
-                        <button
-                          key={color.value}
-                          onClick={() => {
-                            handleColorChange(color.value);
-                            setShowColorPicker(false);
-                          }}
-                          className="relative w-5 h-5 rounded hover:scale-110 transition-transform border-2"
-                          style={{ 
-                            backgroundColor: color.value,
-                            borderColor: edgeColor === color.value ? '#3B82F6' : '#e5e7eb'
-                          }}
-                          title={color.name}
-                        >
-                          {edgeColor === color.value && (
-                            <Check className="w-2 h-2 text-white absolute inset-0 m-auto drop-shadow" />
-                          )}
-                        </button>
-                      ))}
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-white rounded-lg shadow-xl border border-gray-300 p-2">
+                      <div className="flex items-center gap-1">
+                        {edgeColors.map(color => (
+                          <button
+                            key={color.value}
+                            onClick={() => {
+                              handleColorChange(color.value);
+                              setShowColorPicker(false);
+                            }}
+                            className="relative w-6 h-6 rounded hover:scale-110 transition-transform border-2"
+                            style={{ 
+                              backgroundColor: color.value,
+                              borderColor: edgeColor === color.value ? '#3B82F6' : '#e5e7eb'
+                            }}
+                            title={color.name}
+                          >
+                            {edgeColor === color.value && (
+                              <Check className="w-3 h-3 text-white absolute inset-0 m-auto drop-shadow" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
-                </>
+                </div>
               )}
               
               {/* Delete Button */}

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Frame Layout - Perfect Layout V2</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { 
+            margin: 0 0 20px 0;
+            color: #333;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .stat {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .stat.success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        .stat.warning {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+        .stat.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .svg-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            overflow: auto;
+            margin: 20px 0;
+        }
+        .config {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .config h3 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        .issues {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .issues h3 {
+            color: #856404;
+            margin: 0 0 10px 0;
+        }
+        .issues ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .success-message {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: bold;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Frame Layout - Perfect Layout V2</h1>
+        
+        <div class="config">
+            <h3>Configuration</h3>
+            <code>{
+  "mode": "compact",
+  "enableLanes": true,
+  "enableSmartRouting": true,
+  "showHandles": true
+}</code>
+        </div>
+        
+        <div class="stats">
+            <div class="stat success">
+                <div class="stat-value">264, 26.66675052935608</div>
+                <div class="stat-label">Min Coordinates</div>
+            </div>
+            <div class="stat success">
+                <div class="stat-value">0</div>
+                <div class="stat-label">Collisions</div>
+            </div>
+            <div class="stat success">
+                <div class="stat-value">0</div>
+                <div class="stat-label">Handle Conflicts</div>
+            </div>
+            <div class="stat error">
+                <div class="stat-value">3</div>
+                <div class="stat-label">Frame Issues</div>
+            </div>
+            <div class="stat success">
+                <div class="stat-value">5</div>
+                <div class="stat-label">Edge Labels</div>
+            </div>
+            <div class="stat warning">
+                <div class="stat-value">70%</div>
+                <div class="stat-label">Quality Score</div>
+            </div>
+        </div>
+        
+        
+        
+        <div class="svg-container">
+            <svg width="636" height="673.333249470644" style="border: 2px solid #333; background: white;"><line x1="0" y1="0" x2="0" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="50" y1="0" x2="50" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="100" y1="0" x2="100" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="150" y1="0" x2="150" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="200" y1="0" x2="200" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="250" y1="0" x2="250" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="300" y1="0" x2="300" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="350" y1="0" x2="350" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="400" y1="0" x2="400" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="450" y1="0" x2="450" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="500" y1="0" x2="500" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="550" y1="0" x2="550" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="600" y1="0" x2="600" y2="673.333249470644" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="0" x2="636" y2="0" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="50" x2="636" y2="50" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="100" x2="636" y2="100" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="150" x2="636" y2="150" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="200" x2="636" y2="200" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="250" x2="636" y2="250" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="300" x2="636" y2="300" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="350" x2="636" y2="350" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="400" x2="636" y2="400" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="450" x2="636" y2="450" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="500" x2="636" y2="500" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="550" x2="636" y2="550" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="600" x2="636" y2="600" stroke="#f0f0f0" stroke-width="1" /><line x1="0" y1="650" x2="636" y2="650" stroke="#f0f0f0" stroke-width="1" /><path d="M 354 399.9999580686553 L 354 417.4999790343277 L 406 417.4999790343277 L 406 435" fill="none" stroke="#666" stroke-width="2" /><polygon points="406,435 398.01894231812184,434.44980160075283 402.4859569499305,427.81310209880104" fill="#666" /><circle cx="354" cy="399.9999580686553" r="3" fill="green" /><text x="359" y="394.9999580686553" font-size="10" fill="green">top</text><circle cx="406" cy="435" r="3" fill="red" /><text x="411" y="430" font-size="10" fill="red">bottom</text><path d="M 384 293.333375264678 L 384 300 L 404 300 L 404 306.666624735322" fill="none" stroke="#2196f3" stroke-width="2" /><polygon points="404,306.666624735322 396.0165841834973,306.15177339676507 400.45416643011134,299.4953581599777" fill="#2196f3" /><rect x="354" y="290" width="80" height="20" fill="white" stroke="#2196f3" stroke-width="1" rx="3" /><text x="394" y="304" text-anchor="middle" font-size="12" fill="#333">New User</text><circle cx="384" cy="293.333375264678" r="3" fill="green" /><text x="389" y="288.333375264678" font-size="10" fill="green">bottom</text><circle cx="404" cy="306.666624735322" r="3" fill="red" /><text x="409" y="301.666624735322" font-size="10" fill="red">top</text><path d="M 384 213.33337526467804 L 384 206.66670859801138 L 384 206.66670859801138 L 384 200.0000419313447" fill="none" stroke="#2196f3" stroke-width="2" /><polygon points="384,200.0000419313447 388,206.9282451616202 380,206.9282451616202" fill="#2196f3" /><rect x="344" y="196.66670859801138" width="80" height="20" fill="white" stroke="#2196f3" stroke-width="1" rx="3" /><text x="384" y="210.66670859801138" text-anchor="middle" font-size="12" fill="#333">Forgot</text><circle cx="384" cy="213.33337526467804" r="3" fill="green" /><text x="389" y="208.33337526467804" font-size="10" fill="green">top</text><circle cx="384" cy="200.0000419313447" r="3" fill="red" /><text x="389" y="195.0000419313447" font-size="10" fill="red">bottom</text><path d="M 404 306.666624735322 L 394 330 L 384 293.333375264678" fill="none" stroke="#4caf50" stroke-width="2" /><polygon points="384,293.333375264678 391.9834158165027,293.84822660323493 387.54583356988866,300.5046418400223" fill="#4caf50" /><rect x="354" y="290" width="80" height="20" fill="white" stroke="#4caf50" stroke-width="1" rx="3" /><text x="394" y="304" text-anchor="middle" font-size="12" fill="#333">Back</text><circle cx="404" cy="306.666624735322" r="3" fill="green" /><text x="409" y="301.666624735322" font-size="10" fill="green">top</text><circle cx="384" cy="293.333375264678" r="3" fill="red" /><text x="389" y="288.333375264678" font-size="10" fill="red">bottom</text><path d="M 384 200.0000419313447 L 384 236.66670859801138 L 384 213.33337526467804" fill="none" stroke="#4caf50" stroke-width="2" /><polygon points="384,213.33337526467804 380,206.40517203440254 388,206.40517203440254" fill="#4caf50" /><rect x="344" y="196.66670859801138" width="80" height="20" fill="white" stroke="#4caf50" stroke-width="1" rx="3" /><text x="384" y="210.66670859801138" text-anchor="middle" font-size="12" fill="#333">Back</text><circle cx="384" cy="200.0000419313447" r="3" fill="green" /><text x="389" y="195.0000419313447" font-size="10" fill="green">bottom</text><circle cx="384" cy="213.33337526467804" r="3" fill="red" /><text x="389" y="208.33337526467804" font-size="10" fill="red">top</text><path d="M 406 247 L 406 230.0000419313447 L 396 230.0000419313447 L 396 106.66675052935608" fill="none" stroke="#666" stroke-width="2" /><polygon points="396,106.66675052935608 400.4823306231802,113.29311545927816 392.50256494753125,113.86174518215208" fill="#666" /><rect x="361" y="166.83337526467804" width="80" height="20" fill="white" stroke="#666" stroke-width="1" rx="3" /><text x="401" y="180.83337526467804" text-anchor="middle" font-size="12" fill="#333">Success</text><circle cx="406" cy="247" r="3" fill="green" /><text x="411" y="242" font-size="10" fill="green">top</text><circle cx="396" cy="106.66675052935608" r="3" fill="red" /><text x="401" y="101.66675052935608" font-size="10" fill="red">bottom</text><path d="M 396 106.66675052935608 L 396 217 L 416 217 L 416 493.3332494706439" fill="none" stroke="#666" stroke-width="2" /><polygon points="416,493.3332494706439 411.6474629803093,486.62091593511235 419.6367828505992,486.2076750729138" fill="#666" /><circle cx="396" cy="106.66675052935608" r="3" fill="green" /><text x="401" y="101.66675052935608" font-size="10" fill="green">bottom</text><circle cx="416" cy="493.3332494706439" r="3" fill="red" /><text x="421" y="488.3332494706439" font-size="10" fill="red">top</text><rect x="276" y="247" width="260" height="188" 
+            fill="#f8f9fa" stroke="#6c757d" stroke-width="2" 
+            stroke-dasharray="5,5" rx="8" /><text x="406" y="346" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333333">Authentication</text><text x="281" y="262" font-size="10" fill="#999">auth-frame</text><rect x="308" y="28.66675052935608" width="180" height="80" fill="#00000020" rx="8" /><rect x="306" y="26.66675052935608" width="180" height="80" 
+            fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" 
+             rx="8" /><text x="396" y="71.66675052935608" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333333">Dashboard</text><text x="311" y="41.66675052935608" font-size="10" fill="#999">dashboard</text><rect x="328" y="495.3332494706439" width="180" height="80" fill="#00000020" rx="8" /><rect x="326" y="493.3332494706439" width="180" height="80" 
+            fill="#f8d7da" stroke="#dc3545" stroke-width="3" 
+             rx="8" /><text x="416" y="538.333249470644" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333333">Logout</text><text x="331" y="508.3332494706439" font-size="10" fill="#999">end</text><rect x="296" y="215.33337526467804" width="180" height="80" fill="#00000020" rx="8" /><rect x="294" y="213.33337526467804" width="180" height="80" 
+            fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" 
+             rx="8" /><text x="384" y="258.333375264678" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333333">Login</text><text x="299" y="228.33337526467804" font-size="10" fill="#999">login</text><rect x="316" y="308.666624735322" width="180" height="80" fill="#00000020" rx="8" /><rect x="314" y="306.666624735322" width="180" height="80" 
+            fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" 
+             rx="8" /><text x="404" y="351.666624735322" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333333">Register</text><text x="319" y="321.666624735322" font-size="10" fill="#999">register</text><rect x="296" y="122.0000419313447" width="180" height="80" fill="#00000020" rx="8" /><rect x="294" y="120.0000419313447" width="180" height="80" 
+            fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" 
+             rx="8" /><text x="384" y="165.0000419313447" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333333">Reset Password</text><text x="299" y="135.0000419313447" font-size="10" fill="#999">reset</text><rect x="266" y="401.9999580686553" width="180" height="80" fill="#00000020" rx="8" /><rect x="264" y="399.9999580686553" width="180" height="80" 
+            fill="#d4edda" stroke="#28a745" stroke-width="3" 
+             rx="8" /><text x="354" y="444.9999580686553" text-anchor="middle" 
+            font-size="14" font-weight="bold" fill="#333333">Start</text><text x="269" y="414.9999580686553" font-size="10" fill="#999">start</text></svg>
+        </div>
+        
+        
+        <div class="issues">
+            <h3>⚠️ Issues Found</h3>
+            <ul>
+                <li>Frame issue: login outside parent auth-frame</li><li>Frame issue: register outside parent auth-frame</li><li>Frame issue: reset outside parent auth-frame</li>
+            </ul>
+        </div>
+        
+    </div>
+</body>
+</html>
